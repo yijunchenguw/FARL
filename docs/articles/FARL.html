@@ -38,7 +38,6 @@
 <li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
 </form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/yijunchenguw/FARL_Test/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -55,7 +54,7 @@
       <h1>FARL: A Package for Large Scale Assessment</h1>
             
       
-      <small class="dont-index">Source: <a href="https://github.com/yijunchenguw/FARL_Test/blob/HEAD/vignettes/FARL.Rmd" class="external-link"><code>vignettes/FARL.Rmd</code></a></small>
+
       <div class="d-none name"><code>FARL.Rmd</code></div>
     </div>
 
@@ -73,13 +72,13 @@ using the <code>VEMIRT</code> package in <code>R</code>, which can be
 installed with</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va"><a href="https://devtools.r-lib.org/" class="external-link">devtools</a></span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"devtools"</span><span class="op">)</span></span>
-<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"MAP-LAB-UW/VEMIRT"</span>, build_vignettes <span class="op">=</span> <span class="cn">T</span><span class="op">)</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"yijunchenguw/FARL"</span>, build_vignettes <span class="op">=</span> <span class="cn">T</span><span class="op">)</span></span>
 <span><span class="fu">torch</span><span class="fu">::</span><span class="fu"><a href="https://torch.mlverse.org/docs/reference/install_torch.html" class="external-link">install_torch</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p>The package requires a C++ compiler to work properly, and users are
-referred to <a href="https://github.com/MAP-LAB-UW/VEMIRT" class="external-link uri">https://github.com/MAP-LAB-UW/VEMIRT</a> for more
+referred to <a href="https://github.com/yijunchenguw/FARL" class="external-link uri">https://github.com/yijunchenguw/FARL</a> for more
 information.</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">VEMIRT</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va">FARL</span><span class="op">)</span></span></code></pre></div>
 <p>Most functions are based on the Gaussian variational
 expectation-maximization (GVEM) algorithm, which is applicable for
 high-dimensional latent traits.</p>

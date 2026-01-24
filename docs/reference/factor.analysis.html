@@ -24,7 +24,6 @@ the number of samples n is less than the number of variables p."></head><body>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Glossary</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/yijunchenguw/FARL_Test/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul></div>
 
 
@@ -34,7 +33,7 @@ the number of samples n is less than the number of variables p."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Factor analysis</h1>
-      <small class="dont-index">Source: <a href="https://github.com/yijunchenguw/FARL_Test/blob/HEAD/R/cate_src.R" class="external-link"><code>R/cate_src.R</code></a></small>
+
       <div class="d-none name"><code>factor.analysis.Rd</code></div>
     </div>
 
@@ -110,17 +109,17 @@ Owen, A. B. and Wang, J. (2015). Bi-cross-validation for factor analysis. <em>ar
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="co">## to check the results, verify the true factors are in the linear span of the estimated factors.</span></span></span>
 <span class="r-in"><span><span class="va">pc.results</span> <span class="op">&lt;-</span> <span class="fu">factor.analysis</span><span class="op">(</span><span class="va">Y</span>, r <span class="op">=</span> <span class="fl">5</span>, <span class="st">"pc"</span><span class="op">)</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in factor.analysis(Y, r = 5, "pc"):</span> could not find function "factor.analysis"</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">Z</span> <span class="op">~</span> <span class="va">pc.results</span><span class="op">$</span><span class="va">Z</span><span class="op">)</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="va">x</span><span class="op">$</span><span class="va">r.squared</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Response Y1 Response Y2 Response Y3 Response Y4 Response Y5 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   0.9990319   0.9991650   0.9990495   0.9990166   0.9990453 </span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in eval(predvars, data, env):</span> object 'pc.results' not found</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">ml.results</span> <span class="op">&lt;-</span> <span class="fu">factor.analysis</span><span class="op">(</span><span class="va">Y</span>, r <span class="op">=</span> <span class="fl">5</span>, <span class="st">"ml"</span><span class="op">)</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in factor.analysis(Y, r = 5, "ml"):</span> could not find function "factor.analysis"</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">Z</span> <span class="op">~</span> <span class="va">ml.results</span><span class="op">$</span><span class="va">Z</span><span class="op">)</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="va">x</span><span class="op">$</span><span class="va">r.squared</span><span class="op">)</span></span></span>
-<span class="r-out co"><span class="r-pr">#&gt;</span> Response Y1 Response Y2 Response Y3 Response Y4 Response Y5 </span>
-<span class="r-out co"><span class="r-pr">#&gt;</span>   0.9990405   0.9991530   0.9989957   0.9989903   0.9989799 </span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in eval(predvars, data, env):</span> object 'ml.results' not found</span>
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="va">esa.results</span> <span class="op">&lt;-</span> <span class="fu">factor.analysis</span><span class="op">(</span><span class="va">Y</span>, r <span class="op">=</span> <span class="fl">5</span>, <span class="st">"esa"</span><span class="op">)</span></span></span>
-<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in ESA(Y, r):</span> could not find function "ESA"</span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in factor.analysis(Y, r = 5, "esa"):</span> could not find function "factor.analysis"</span>
 <span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">sapply</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/stats/lm.html" class="external-link">lm</a></span><span class="op">(</span><span class="va">Z</span> <span class="op">~</span> <span class="va">esa.results</span><span class="op">$</span><span class="va">Z</span><span class="op">)</span><span class="op">)</span>, <span class="kw">function</span><span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="va">x</span><span class="op">$</span><span class="va">r.squared</span><span class="op">)</span></span></span>
 <span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in eval(predvars, data, env):</span> object 'esa.results' not found</span>
 <span class="r-in"><span></span></span>

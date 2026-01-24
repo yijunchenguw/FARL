@@ -24,7 +24,6 @@ item response data through an IRT measurement model."></head><body>
 <li class="active nav-item"><a class="nav-link" href="../reference/index.html">Glossary</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/yijunchenguw/FARL_Test/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul></div>
 
 
@@ -34,7 +33,7 @@ item response data through an IRT measurement model."></head><body>
   <main id="main" class="col-md-9"><div class="page-header">
 
       <h1>Fit a Latent Regression Model via the EM Algorithm</h1>
-      <small class="dont-index">Source: <a href="https://github.com/yijunchenguw/FARL_Test/blob/HEAD/R/fit_gvem.R" class="external-link"><code>R/fit_gvem.R</code></a></small>
+
       <div class="d-none name"><code>mml.Rd</code></div>
     </div>
 
@@ -46,7 +45,18 @@ item response data through an IRT measurement model.</p>
 
     <div class="section level2">
     <h2 id="ref-usage">Usage<a class="anchor" aria-label="anchor" href="#ref-usage"></a></h2>
-    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">mml</span><span class="op">(</span><span class="va">X</span>, <span class="va">Y</span>, <span class="va">parTab</span>, <span class="va">p</span>, n_sam <span class="op">=</span> <span class="fl">30</span>, verbose <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">mml</span><span class="op">(</span></span>
+<span>  <span class="va">X</span>,</span>
+<span>  <span class="va">Y</span>,</span>
+<span>  <span class="va">parTab</span>,</span>
+<span>  n_sam <span class="op">=</span> <span class="fl">5</span>,</span>
+<span>  method <span class="op">=</span> <span class="st">"FARLR_EMM"</span>,</span>
+<span>  lambda <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/seq.html" class="external-link">seq</a></span><span class="op">(</span><span class="fl">0.1</span>, <span class="fl">0.5</span>, by <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span>,</span>
+<span>  delta.criteria <span class="op">=</span> <span class="fl">0.001</span>,</span>
+<span>  iter.max <span class="op">=</span> <span class="fl">200</span>,</span>
+<span>  window.size <span class="op">=</span> <span class="fl">50</span>,</span>
+<span>  verbose <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div class="section level2">
@@ -59,10 +69,6 @@ item response data through an IRT measurement model.</p>
 
 <dt id="arg-y">Y<a class="anchor" aria-label="anchor" href="#arg-y"></a></dt>
 <dd><p>Matrix. Item response matrix (\(N \times J\)).</p></dd>
-
-
-<dt id="arg-p">p<a class="anchor" aria-label="anchor" href="#arg-p"></a></dt>
-<dd><p>Integer. Number of covariates included in the latent regression.</p></dd>
 
 
 <dt id="arg-n-sam">n_sam<a class="anchor" aria-label="anchor" href="#arg-n-sam"></a></dt>
@@ -81,6 +87,10 @@ estimation. Default is <code>TRUE</code>.</p></dd>
 
 <dt id="arg-d">d<a class="anchor" aria-label="anchor" href="#arg-d"></a></dt>
 <dd><p>Numeric vector or matrix. Item difficulty (intercept) parameters.</p></dd>
+
+
+<dt id="arg-p">p<a class="anchor" aria-label="anchor" href="#arg-p"></a></dt>
+<dd><p>Integer. Number of covariates included in the latent regression.</p></dd>
 
 </dl></div>
     <div class="section level2">

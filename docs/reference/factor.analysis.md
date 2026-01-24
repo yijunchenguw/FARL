@@ -75,17 +75,17 @@ Y <- Z %*% t(Gamma) + rnorm(n * p)
 
 ## to check the results, verify the true factors are in the linear span of the estimated factors.
 pc.results <- factor.analysis(Y, r = 5, "pc")
+#> Error in factor.analysis(Y, r = 5, "pc"): could not find function "factor.analysis"
 sapply(summary(lm(Z ~ pc.results$Z)), function(x) x$r.squared)
-#> Response Y1 Response Y2 Response Y3 Response Y4 Response Y5 
-#>   0.9990319   0.9991650   0.9990495   0.9990166   0.9990453 
+#> Error in eval(predvars, data, env): object 'pc.results' not found
 
 ml.results <- factor.analysis(Y, r = 5, "ml")
+#> Error in factor.analysis(Y, r = 5, "ml"): could not find function "factor.analysis"
 sapply(summary(lm(Z ~ ml.results$Z)), function(x) x$r.squared)
-#> Response Y1 Response Y2 Response Y3 Response Y4 Response Y5 
-#>   0.9990405   0.9991530   0.9989957   0.9989903   0.9989799 
+#> Error in eval(predvars, data, env): object 'ml.results' not found
 
 esa.results <- factor.analysis(Y, r = 5, "esa")
-#> Error in ESA(Y, r): could not find function "ESA"
+#> Error in factor.analysis(Y, r = 5, "esa"): could not find function "factor.analysis"
 sapply(summary(lm(Z ~ esa.results$Z)), function(x) x$r.squared)
 #> Error in eval(predvars, data, env): object 'esa.results' not found
 ```

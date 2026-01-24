@@ -7,7 +7,18 @@ item response data through an IRT measurement model.
 ## Usage
 
 ``` r
-mml(X, Y, parTab, p, n_sam = 30, verbose = TRUE)
+mml(
+  X,
+  Y,
+  parTab,
+  n_sam = 5,
+  method = "FARLR_EMM",
+  lambda = seq(0.1, 0.5, by = 0.1),
+  delta.criteria = 0.001,
+  iter.max = 200,
+  window.size = 50,
+  verbose = TRUE
+)
 ```
 
 ## Arguments
@@ -19,10 +30,6 @@ mml(X, Y, parTab, p, n_sam = 30, verbose = TRUE)
 - Y:
 
   Matrix. Item response matrix (\\N \times J\\).
-
-- p:
-
-  Integer. Number of covariates included in the latent regression.
 
 - n_sam:
 
@@ -41,6 +48,10 @@ mml(X, Y, parTab, p, n_sam = 30, verbose = TRUE)
 - d:
 
   Numeric vector or matrix. Item difficulty (intercept) parameters.
+
+- p:
+
+  Integer. Number of covariates included in the latent regression.
 
 ## Value
 

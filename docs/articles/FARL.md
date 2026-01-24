@@ -10,15 +10,15 @@ using the `VEMIRT` package in `R`, which can be installed with
 
 ``` r
 if (!require(devtools)) install.packages("devtools")
-devtools::install_github("MAP-LAB-UW/VEMIRT", build_vignettes = T)
+devtools::install_github("yijunchenguw/FARL", build_vignettes = T)
 torch::install_torch()
 ```
 
 The package requires a C++ compiler to work properly, and users are
-referred to <https://github.com/MAP-LAB-UW/VEMIRT> for more information.
+referred to <https://github.com/yijunchenguw/FARL> for more information.
 
 ``` r
-library(VEMIRT)
+library(FARL)
 ```
 
 Most functions are based on the Gaussian variational
