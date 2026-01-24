@@ -13,7 +13,7 @@ accuracy. The package contains several example datasets and functions
 for
 
 - FARLR: Factor-augmented Regularized Latent Regression
-- FARLR-debias: Factor-augmented Regularized Latent Regression - Debias
+- FARLR-debias: Factor-augmented Regularized Latent Regression - Debisas
 
 ## Installation
 
@@ -34,7 +34,7 @@ To install this package from source:
 
 ``` r
 if (!require(devtools)) install.packages("devtools")
-devtools::install_github("yijunchenguw/FARL_Test", build_vignettes = TRUE)
+devtools::install_github("yijunchenguw/FARL", build_vignettes = TRUE)
 torch::install_torch()
 ```
 
