@@ -189,6 +189,7 @@ farlr_emm <- function(n,resp, parTab, K_hat, p, lambda_all, delta.criteria = 1e-
     }
     #print(ll)
     #print(iter)
+    if (verbose) {setTxtProgressBar(pb, pb$getVal() + 1)}
     results[[ll]] <- list(beta_gamma_old,sigma_old,bic,cov_t)
   }
   minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
