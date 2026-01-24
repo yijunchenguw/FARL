@@ -1,0 +1,2335 @@
+
+
+FARLR_II <- function(n,resp, a, d,c, K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 50,  window.size = 50, theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, main){
+
+  results <- list()
+  for (ll in 1:length(lambda_all)) {
+    # initial value
+    beta_gamma_old <- rep(0,K_hat+p)
+    beta_gamma_t <- c()
+    sigma_old <- 1
+
+    delta <- 1
+    iter <- 1
+    theta_t <- 1
+    cov_t <- c()
+    cv.fit.em <- list()
+    cv.fit.em.debias <- list()
+    lambda <- lambda_all[ll]
+    window_size <- window.size
+
+    while ((delta > delta.criteria) && (iter < iter.max)) {
+      # E-step : sample the theta
+
+      theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+      q_num_sample <- q_num_NA(a,d,c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+
+      h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+      den_all <- q_num_sample/h_sample
+
+      den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+      w_ik <- (1/den_i)*q_num_sample/h_sample
+
+      factors <- rep(1,p)
+      factors[main] <- 0
+      cv.fit.em[[iter]] <- glmnet(Z.em, theta_sample, standardize=FALSE, family="gaussian",
+                                  penalty.factor=c(rep(0,K_hat),factors), weights = w_ik, intercept = FALSE, lambda = lambda)
+      #plot(cv.fit.em)
+      coef_hat_em <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+
+      #lm ----
+      cv.fit.em.debias[[iter]] <- lm(theta_sample~0+Z.em[,which(coef_hat_em!=0)], weights = w_ik)
+      coef_hat_em_debias <- rep(0,p+K_hat)
+      coef_hat_em_debias[which(coef_hat_em!=0)] <- coef(cv.fit.em.debias[[iter]])
+      coef_hat_em_debias <- ifelse(is.na(coef_hat_em_debias), 0 ,coef_hat_em_debias )
+      # cross validation
+      # cv.fit
+      beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
+
+      #calculate mean
+      matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+
+      beta_gamma_means <- rowMeans(matrix_beta_gamma)
+
+      cov <- vcov(cv.fit.em.debias[[iter]])
+      fitted_values.em <- matrix(beta_gamma_means, nrow = 1, ncol = p+K_hat)%*%t(Z.em)
+      residuals <- theta_sample - fitted_values.em
+      WSSR <- sum(w_ik*(residuals^2))#
+      #var <- posterior_var
+      sigma_temp <- sqrt((WSSR)/(sum(w_ik)-p))
+
+      #joint response ???hg
+      bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - Z.em%*%coef_hat_em_debias)^2)) + sum(coef_hat_em_debias!=0)*log(n)
+
+      delta_s <- abs(sigma_old-sigma_temp)
+      delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
+      #delta_t <- abs(theta_t-theta_debiased)
+      delta <- max(delta_s, delta_b)
+      sigma_old <- sigma_temp
+      cov_t <- cov
+      beta_gamma_old <- beta_gamma_means
+      #theta_t <- theta_debiased
+      iter <- iter+1
+      print(c(delta))
+    }
+    print(ll)
+    print(iter)
+    results[[ll]] <- list(beta_gamma_old,sigma_old,bic,cov_t)
+  }
+  minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
+  return(list(coef <- results[[minBIC]][[1]], sigma <- results[[minBIC]][[2]], minBIC, cov <-results[[minBIC]][[4]] ))
+}
+
+pc_selection <- function(n,resp, a, d,c, K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 50,  window.size = 50, theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, main){
+
+  results <- list()
+  for (ll in 1:length(lambda_all)) {
+    # initial value
+    beta_gamma_old <- rep(0,K_hat+p)
+    beta_gamma_t <- c()
+    sigma_old <- 1
+
+    delta <- 1
+    iter <- 1
+    theta_t <- 1
+    cov_t <- c()
+    cv.fit.em <- list()
+    cv.fit.em.debias <- list()
+    lambda <- lambda_all[ll]
+    window_size <- window.size
+
+    while ((delta > delta.criteria) && (iter < iter.max)) {
+      # E-step : sample the theta
+
+      theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+      q_num_sample <- q_num_NA(a,d,c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+
+      h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+      den_all <- q_num_sample/h_sample
+
+      den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+      w_ik <- (1/den_i)*q_num_sample/h_sample
+
+      factors <- rep(1,p)
+      factors[main] <- 0
+      cv.fit.em[[iter]] <- glmnet(Z.em, theta_sample, standardize=FALSE, family="gaussian",
+                                  penalty.factor=c(rep(0,K_hat),factors), weights = w_ik, intercept = FALSE, lambda = lambda)
+      #plot(cv.fit.em)
+      coef_hat_em <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+
+      #lm ----
+      cv.fit.em.debias[[iter]] <- lm(theta_sample~0+Z.em[,which(coef_hat_em!=0)], weights = w_ik)
+      coef_hat_em_debias <- rep(0,p+K_hat)
+      coef_hat_em_debias[which(coef_hat_em!=0)] <- coef(cv.fit.em.debias[[iter]])
+      coef_hat_em_debias <- ifelse(is.na(coef_hat_em_debias), 0 ,coef_hat_em_debias )
+      # cross validation
+      # cv.fit
+      beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
+
+      #calculate mean
+      matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+
+      beta_gamma_means <- rowMeans(matrix_beta_gamma)
+
+      cov <- vcov(cv.fit.em.debias[[iter]])
+      fitted_values.em <- matrix(beta_gamma_means, nrow = 1)%*%t(Z.em)
+      residuals <- theta_sample - fitted_values.em
+      WSSR <- sum(w_ik*(residuals^2))#
+      #var <- posterior_var
+      sigma_temp <- sqrt((WSSR)/(sum(w_ik)-p))
+
+      #joint response ???hg
+      bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - Z.em%*%coef_hat_em_debias)^2)) + sum(coef_hat_em_debias!=0)*log(n)
+
+      delta_s <- abs(sigma_old-sigma_temp)
+      delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
+      #delta_t <- abs(theta_t-theta_debiased)
+      delta <- max(delta_s, delta_b)
+      sigma_old <- sigma_temp
+      cov_t <- cov
+      beta_gamma_old <- beta_gamma_means
+      #theta_t <- theta_debiased
+      iter <- iter+1
+      print(c(delta))
+    }
+    print(ll)
+    print(iter)
+    results[[ll]] <- list(beta_gamma_old,sigma_old,bic,cov_t)
+  }
+  minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
+  return(list(coef <- results[[minBIC]][[1]], sigma <- results[[minBIC]][[2]], minBIC, cov <-results[[minBIC]][[4]] ))
+}
+
+resultII <- FARLR_II_real(length(theta), as.matrix(resp_final), a, d, c, K_hat, p, seq(0.1,0.5, length.out = 5),delta.criteria = 1e-3,iter.max = 200, n_sam = 25, window.size = 100,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, main)
+
+FARLR_II_real <- function(n,resp, a, d,c, K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 50,  window.size = 50, theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, main){
+
+  results <- list()
+  for (ll in 1:length(lambda_all)) {
+    # initial value
+    beta_gamma_old <- rep(0,K_hat+p)
+    beta_gamma_t <- c()
+    sigma_old <- 1
+
+    delta <- 1
+    iter <- 1
+    theta_t <- 1
+    cov_t <- c()
+    cv.fit.em <- list()
+    cv.fit.em.debias <- list()
+    lambda <- lambda_all[ll]
+    window_size <- window.size
+
+    while ((delta > delta.criteria) && (iter < iter.max)) {
+      # E-step : sample the theta
+
+      theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+      q_num_sample <- q_num_NA(a,d,c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+
+      h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+      den_all <- q_num_sample/h_sample
+
+      den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+      w_ik <- (1/den_i)*q_num_sample/h_sample
+
+      factors <- rep(1,p)
+      factors[main] <- 0
+      cv.fit.em[[iter]] <- glmnet(Z.em, theta_sample, standardize=FALSE, family="gaussian",
+                                  penalty.factor=c(rep(0,K_hat),factors), weights = w_ik, intercept = FALSE, lambda = lambda)
+      #plot(cv.fit.em)
+      coef_hat_em <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+
+      #lm ----
+      cv.fit.em.debias[[iter]] <- lm(theta_sample~0+Z.em[,which(coef_hat_em!=0)], weights = w_ik)
+      coef_hat_em_debias <- rep(0,p+K_hat)
+      coef_hat_em_debias[which(coef_hat_em!=0)] <- coef(cv.fit.em.debias[[iter]])
+
+      # cross validation
+      # cv.fit
+      beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
+
+      #calculate mean
+      matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+
+      beta_gamma_means <- rowMeans(matrix_beta_gamma)
+
+      cov <- vcov(cv.fit.em.debias[[iter]])
+      fitted_values.em <- matrix(beta_gamma_means, nrow = 1)%*%t(Z.em)
+      residuals <- theta_sample - fitted_values.em
+      WSSR <- sum(w_ik*(residuals^2))#
+      #var <- posterior_var
+      sigma_temp <- sqrt((WSSR)/(sum(w_ik)-p))
+
+      #joint response ???hg
+      bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - Z.em%*%coef_hat_em_debias)^2)) + sum(coef_hat_em_debias!=0)*log(n)
+
+      delta_s <- abs(sigma_old-sigma_temp)
+      delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
+      #delta_t <- abs(theta_t-theta_debiased)
+      delta <- max(delta_s, delta_b)
+      sigma_old <- sigma_temp
+      cov_t <- cov
+      beta_gamma_old <- beta_gamma_means
+      #theta_t <- theta_debiased
+      iter <- iter+1
+      print(c(delta))
+    }
+    print(ll)
+    print(iter)
+    results[[ll]] <- list(beta_gamma_old,sigma_old,bic,cov_t)
+  }
+  minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
+  return(list(coef <- results[[minBIC]][[1]], sigma <- results[[minBIC]][[2]], minBIC, cov <-results[[minBIC]][[4]] ))
+}
+
+TM_NV <- function(n, resp,a, d,c, K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 50, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, X, main){
+
+  hatf_tra <-  PCA_extraction_full(main_vars, X)
+  TR<- cbind(X[,main],hatf_tra )
+  TR.em <- rep(1, n_sam) %x% TR
+  results <- list()
+  window_size <- window.size
+  for (ll in 1:length(lambda_all)) {
+  # initial value
+  beta_gamma_old <- rep(0,(length(main_vars)+ncol(hatf_tra)))
+  sigma_old <- 1
+  beta_gamma_t <- c()
+  delta <- 1
+  iter <- 1
+  theta_t <- 1
+  cov_t <- c()
+  cv.fit.em <- list()
+  cv.fit.em.debias <- list()
+  cov_TD <- c()
+  lambda <- lambda_all[ll]
+
+  while ((delta > delta.criteria) && (iter < iter.max)) {
+    theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+    q_num_sample <- q_num(a, b, c, theta_sample,resp_rep,TR.em,beta_gamma_old,sigma_old)
+
+    h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+    den_all <- q_num_sample/h_sample
+
+    den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+    w_ik <- (1/den_i)*q_num_sample/h_sample
+
+    cv.fit.em[[iter]] <- glmnet(cbind(X.em[,main_vars],f.em), theta_sample, standardize=FALSE, family="gaussian", penalty.factor=c(rep(0,length(main_vars)),rep(1,ncol(hatf_tra))),weights = w_ik, intercept = FALSE, lambda = lambda)
+
+    cv.fit.non_zero <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+    if(any(cv.fit.non_zero != 0)){
+
+      if(any(cv.fit.non_zero != 0))
+      {
+        cv.fit.em.debias[[iter]] <- lm(theta_sample~0+TR.em[,which(cv.fit.non_zero!=0)],weights = w_ik)
+      }
+      else{
+        cv.fit.em.debias[[iter]] <- lm(theta_sample~0+TR.em[,which(cv.fit.non_zero!=0)],weights = w_ik)
+      }
+    }
+    coef_hat_em_debias <- rep(0,p)
+    coef_hat_em_debias[which(cv.fit.non_zero!=0)] <- coef(cv.fit.em.debias[[iter]])
+    beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
+
+    #calculate mean
+    matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+
+    beta_gamma_means <- rowMeans(matrix_beta_gamma)
+
+    #cov <- vcov(cv.fit.em.debias[[iter]])
+    fitted_values.em <- matrix(beta_gamma_means, nrow = 1)%*%t(TR.em)
+    residuals <- theta_sample - fitted_values.em
+    WSSR <- sum(w_ik*(residuals^2))#
+    #var <- posterior_var
+    sigma_temp <- sqrt((WSSR)/(sum(w_ik)-p))
+
+    #joint response ???hg
+    bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - TR.em%*%coef_hat_em_debias)^2)) + sum(coef_hat_em_debias!=0)*log(n)
+
+    delta_s <- abs(sigma_old-sigma_temp)
+    delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
+    #delta_t <- abs(theta_t-theta_debiased)
+    delta <- max(delta_s, delta_b)
+    sigma_old <- sigma_temp
+    cov_t <- cov
+    beta_gamma_old <- beta_gamma_means
+    #theta_t <- theta_debiased
+    iter <- iter+1
+    print(c(delta))
+  }
+  print(ll)
+  print(iter)
+  results[[ll]] <- list(beta_gamma_old,sigma_old,bic)
+  }
+  minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
+  return(list(coef <- results[[minBIC]][[1]], sigma <- results[[minBIC]][[2]], hatf_tra,minBIC))
+}
+
+FARLR_debias <- function(n,resp, a, d,c, K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 5, window.size = 50, theta_est_irt.mean, theta_est_irt.se,Uupdate,hatU, Fan, main)
+{
+  # method debias
+  results <- list()
+  Uupdate.em <- rep(1, n_sam) %x% Uupdate
+  Uupdate.em.torch <- torch_tensor(Uupdate.em)
+  resp_rep <- rep(1, n_sam) %x% resp
+  hatU.em <- rep(1, n_sam) %x% hatU
+  hatU.em.torch <- torch_tensor(hatU.em)
+  Fan.em <- rep(1, n_sam) %x% Fan
+
+  temp <- Uupdate.em.torch$matmul(Uupdate.em.torch$t())              # [p, 1]
+  P <- (1 / (n * n_sam)) * temp
+  #P <- 1/(n*n_sam)*torch_matmul(Uupdate.em.torch,Uupdate.em.torch$t())
+  Z.em <- rep(1, n_sam) %x% Fan
+
+  for (ll in 1:length(lambda_all)) {
+    # initial value
+    beta_gamma_old <- rep(0,K_hat+p)
+    sigma_old <- 1
+    beta_gamma_t <- list()
+    sigma_t <- list()
+    window_size = window.size
+
+    delta <- 1
+    iter <- 1
+    theta_t <- 1
+    cov_t <- c()
+    cv.fit.em <- list()
+    cv.fit.em.debias <- list()
+    lambda <- lambda_all[ll]
+
+    while ((delta > delta.criteria) && (iter < iter.max)) {
+      # E-step : sample the theta
+      theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+      theta_sample.torch <- torch_tensor(theta_sample)
+      q_num_sample <- q_num_NA(a,d, c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+
+      h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+      den_all <- q_num_sample/h_sample
+
+      den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+
+      w_ik <- (1/den_i)*q_num_sample/h_sample
+      w_ik.torch <- torch_tensor(w_ik)
+      theta_1 <-theta_sample.torch-torch_matmul(P,theta_sample.torch)
+
+      factors <- rep(1,p)
+      factors[main] <- 0
+      cv.fit.em[[iter]] <- glmnet(hatU.em, as.matrix(theta_1),
+                                  weights = w_ik, penalty.factor=factors,intercept = FALSE, lambda = lambda)
+      coef_hat_em <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+      coef_hat_em.torch <- torch_tensor(coef_hat_em)
+      weights <- torch_diag(w_ik.torch)
+      C<-torch_diag(rep(1,p))
+      # T<-c()
+      # for( j in 1:ncol(hatU.em)){
+      #
+      #   C[j,-j]<-0
+      #   T<-c(T,1/(n*n_sam)*sum(w_ik*(hatU.em[,j])^2))
+      #   # if (j%%100==0){
+      #   #   print(j)
+      #   # }
+      # }
+      # Ensure w_ik is [n, 1] for broadcasting
+      w_ik_exp <- w_ik.torch$unsqueeze(2)  # [n, 1]
+
+      # Weighted square of hatU_em: [n, p]
+      weighted_sq <- w_ik_exp * hatU.em.torch$pow(2)
+
+      # Sum across rows (i.e., for each column j): result [p]
+      col_sums <- weighted_sq$sum(dim = 1)
+
+      # Compute T vector
+      T <- (1 / (n * n_sam)) * col_sums
+      # Create diagonal matrix C: [p, p]
+      T1<-torch_diag(1/T)
+      Theta1<-torch_matmul(T1,C)
+      temp <- (1/(n*n_sam))* torch_matmul(Theta1,hatU.em.torch$t())
+
+      residuals <- theta_1 - torch_matmul(hatU.em.torch, coef_hat_em.torch)
+      coef_hat_debias <- coef_hat_em + torch_matmul(torch_matmul(temp, weights), residuals)
+      coef_hat_debias <- as.array(coef_hat_debias)
+      #debias ----
+      Ut <- Uupdate.em.torch$transpose(1, 2)
+
+      # Full left-hand matrix: (Uᵗ W U)
+      lhs <- Ut$matmul(weights)$matmul(Uupdate.em.torch)
+
+      # Right-hand side: Uᵗ W θ
+      rhs <- Ut$matmul(weights)$matmul(theta_sample)
+
+      # Solve the system (lhs)^(-1) * rhs
+      phi_hat <- torch_inverse(lhs)$matmul(rhs)
+      #phi_hat <-(solve(t(Uupdate.em)%*%Uupdate.em))%*%t(Uupdate.em) %*% theta_sample
+      phi_hat <- as.array(phi_hat)
+      coef_hat_em_debias <- ifelse(coef_hat_em !=0, (coef_hat_debias), 0)
+      coef_hat_em_debias <- append(coef_hat_em_debias, (phi_hat), after = 0)
+
+      #add into sliding window
+      beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
+
+      #calculate mean
+      matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+
+      beta_gamma_means <- rowMeans(matrix_beta_gamma)
+
+      fitted_values.em <- matrix(beta_gamma_means, nrow = 1)%*%t(Z.em)
+      residuals_2 <- theta_sample - fitted_values.em
+      WSSR <- sum(w_ik*(residuals_2^2))#
+      sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
+
+      matrix_sigma <- do.call(cbind, sigma_t)
+      sigma_means <- sigma_temp #rowMeans(matrix_sigma)
+
+      #joint response ???hg
+      bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - Z.em%*%beta_gamma_means)^2)) + sum(beta_gamma_means!=0)*log(n)
+
+      #calculate delta
+      delta_s <- abs(sigma_old-sigma_means)
+      delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
+      delta <- max(delta_s, delta_b)
+
+      sigma_old <- sigma_means
+      beta_gamma_old <- beta_gamma_means
+      iter <- iter + 1
+      print(delta)
+    }
+    print(ll)
+    print(iter)
+    results[[ll]] <- list(beta_gamma_old,sigma_old,bic)
+  }
+
+  minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
+  beta_hat <- results[[minBIC]][[1]]; sigma <- results[[minBIC]][[2]]
+  n_sam <- 100
+  Uupdate.em <- rep(1, n_sam) %x% Uupdate
+  resp_rep <- rep(1, n_sam) %x% resp
+  hatU.em <- rep(1, n_sam) %x% hatU
+  Z.em <- rep(1, n_sam) %x% Fan
+
+  theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+  q_num_sample <- q_num_NA(a,d,c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+
+  h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+  den_all <- q_num_sample/h_sample
+
+  den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+
+  w_ik <- (1/den_i)*q_num_sample/h_sample
+
+  fitted_values.em <- matrix(beta_hat, nrow = 1)%*%t(Z.em)
+  residuals_2 <- theta_sample - fitted_values.em
+  WSSR <- sum(w_ik*(residuals_2^2))#
+  sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
+
+  return(list(coef <- beta_hat, sigma <- sigma_temp,  minBIC))
+}
+
+FARLR_debias_real <- function(n,resp, a, d,c, K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 5, window.size = 50, theta_est_irt.mean, theta_est_irt.se,Uupdate,hatU, Fan, main)
+{
+  # method debias
+  results <- list()
+  Uupdate.em <- rep(1, n_sam) %x% Uupdate
+  Uupdate.em.torch <- torch_tensor(Uupdate.em)
+  resp_rep <- rep(1, n_sam) %x% resp
+  hatU.em <- rep(1, n_sam) %x% hatU
+  hatU.em.torch <- torch_tensor(hatU.em)
+  Fan.em <- rep(1, n_sam) %x% Fan
+
+  temp <- Uupdate.em.torch$matmul(Uupdate.em.torch$t())              # [p, 1]
+  P <- (1 / (n * n_sam)) * temp
+  #P <- 1/(n*n_sam)*torch_matmul(Uupdate.em.torch,Uupdate.em.torch$t())
+  Z.em <- rep(1, n_sam) %x% Fan
+
+  for (ll in 1:length(lambda_all)) {
+    # initial value
+    beta_gamma_old <- rep(0,K_hat+p)
+    sigma_old <- 1
+    beta_gamma_t <- list()
+    sigma_t <- list()
+    window_size = window.size
+
+    delta <- 1
+    iter <- 1
+    theta_t <- 1
+    cov_t <- c()
+    cv.fit.em <- list()
+    cv.fit.em.debias <- list()
+    lambda <- lambda_all[ll]
+
+    while ((delta > delta.criteria) && (iter < iter.max)) {
+      # E-step : sample the theta
+      theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+      theta_sample.torch <- torch_tensor(theta_sample)
+      q_num_sample <- q_num_NA(a,d, c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+
+      h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+      den_all <- q_num_sample/h_sample
+
+      den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+
+      w_ik <- (1/den_i)*q_num_sample/h_sample
+      w_ik.torch <- torch_tensor(w_ik)
+      theta_1 <-theta_sample.torch-torch_matmul(P,theta_sample.torch)
+
+      factors <- rep(1,p)
+      factors[main] <- 0
+      cv.fit.em[[iter]] <- glmnet(hatU.em, as.matrix(theta_1),
+                                  weights = w_ik,  penalty.factor=factors, intercept = FALSE, lambda = lambda)
+      coef_hat_em <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+      coef_hat_em.torch <- torch_tensor(coef_hat_em)
+      weights <- torch_diag(w_ik.torch)
+      C<-torch_diag(rep(1,p))
+      # T<-c()
+      # for( j in 1:ncol(hatU.em)){
+      #
+      #   C[j,-j]<-0
+      #   T<-c(T,1/(n*n_sam)*sum(w_ik*(hatU.em[,j])^2))
+      #   # if (j%%100==0){
+      #   #   print(j)
+      #   # }
+      # }
+      # Ensure w_ik is [n, 1] for broadcasting
+      w_ik_exp <- w_ik.torch$unsqueeze(2)  # [n, 1]
+
+      # Weighted square of hatU_em: [n, p]
+      weighted_sq <- w_ik_exp * hatU.em.torch$pow(2)
+
+      # Sum across rows (i.e., for each column j): result [p]
+      col_sums <- weighted_sq$sum(dim = 1)
+
+      # Compute T vector
+      T <- (1 / (n * n_sam)) * col_sums
+      # Create diagonal matrix C: [p, p]
+      T1<-torch_diag(1/T)
+      Theta1<-torch_matmul(T1,C)
+      temp <- (1/(n*n_sam))* torch_matmul(Theta1,hatU.em.torch$t())
+
+      residuals <- theta_1 - torch_matmul(hatU.em.torch, coef_hat_em.torch)
+      coef_hat_debias <- coef_hat_em + torch_matmul(torch_matmul(temp, weights), residuals)
+      coef_hat_debias <- as.array(coef_hat_debias)
+      #debias ----
+      Ut <- Uupdate.em.torch$transpose(1, 2)
+
+      # Full left-hand matrix: (Uᵗ W U)
+      lhs <- Ut$matmul(weights)$matmul(Uupdate.em.torch)
+
+      # Right-hand side: Uᵗ W θ
+      rhs <- Ut$matmul(weights)$matmul(theta_sample)
+
+      # Solve the system (lhs)^(-1) * rhs
+      phi_hat <- torch_inverse(lhs)$matmul(rhs)
+      #phi_hat <-(solve(t(Uupdate.em)%*%Uupdate.em))%*%t(Uupdate.em) %*% theta_sample
+      phi_hat <- as.array(phi_hat)
+      coef_hat_em_debias <- ifelse(coef_hat_em !=0, (coef_hat_debias), 0)
+      coef_hat_em_debias <- append(coef_hat_em_debias, (phi_hat), after = 0)
+
+      #add into sliding window
+      beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
+
+      #calculate mean
+      matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+
+      beta_gamma_means <- rowMeans(matrix_beta_gamma)
+
+      fitted_values.em <- matrix(beta_gamma_means, nrow = 1)%*%t(Z.em)
+      residuals_2 <- theta_sample - fitted_values.em
+      WSSR <- sum(w_ik*(residuals_2^2))#
+      sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
+
+      matrix_sigma <- do.call(cbind, sigma_t)
+      sigma_means <- sigma_temp #rowMeans(matrix_sigma)
+
+      #joint response ???hg
+      bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - Z.em%*%beta_gamma_means)^2)) + sum(beta_gamma_means!=0)*log(n)
+
+      #calculate delta
+      delta_s <- abs(sigma_old-sigma_means)
+      delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
+      delta <- max(delta_s, delta_b)
+
+      sigma_old <- sigma_means
+      beta_gamma_old <- beta_gamma_means
+      iter <- iter + 1
+      print(delta)
+    }
+    print(ll)
+    print(iter)
+    results[[ll]] <- list(beta_gamma_old,sigma_old,bic)
+  }
+
+  minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
+  beta_hat <- results[[minBIC]][[1]]; sigma <- results[[minBIC]][[2]]
+  n_sam <- 100
+  Uupdate.em <- rep(1, n_sam) %x% Uupdate
+  resp_rep <- rep(1, n_sam) %x% resp
+  hatU.em <- rep(1, n_sam) %x% hatU
+  Z.em <- rep(1, n_sam) %x% Fan
+
+  theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+  q_num_sample <- q_num_NA(a,d,c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+
+  h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+  den_all <- q_num_sample/h_sample
+
+  den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+
+  w_ik <- (1/den_i)*q_num_sample/h_sample
+
+  fitted_values.em <- matrix(beta_hat, nrow = 1)%*%t(Z.em)
+  residuals_2 <- theta_sample - fitted_values.em
+  WSSR <- sum(w_ik*(residuals_2^2))#
+  sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
+
+  return(list(coef <- beta_hat, sigma <- sigma_temp, minBIC))
+}
+FARLR_reestimate <- function(K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 5, window.size = 50, theta_est_irt.mean, theta_est_irt.se, resp,Uupdate,hatU, Fan)
+{
+  results <- list()
+  n_sam <- 5
+  Uupdate.em <- rep(1, n_sam) %x% Uupdate
+  resp_rep <- rep(1, n_sam) %x% resp
+  hatU.em <- rep(1, n_sam) %x% hatU
+  P <- 1/(n*n_sam)*(Uupdate.em)%*%t(Uupdate.em)
+  Z.em <- rep(1, n_sam) %x% Fan
+  delta.criteria <- 1e-3
+  iter.max <- 100
+  for (ll in 1:length(lambda_all)) {
+    # initial value
+    beta_gamma_old <- rep(0,K+p)
+    sigma_old <- 1
+    beta_gamma_t <- list()
+    sigma_t <- list()
+    window_size = window.size
+
+    delta <- 1
+    iter <- 1
+    theta_t <- 1
+    cov_t <- c()
+    cv.fit.em <- list()
+    cv.fit.em.debias <- list()
+    lambda <- lambda_all[ll]
+
+    while ((delta > delta.criteria) && (iter < iter.max)) {
+      # E-step : sample the theta
+      theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+      q_num_sample <- q_num(theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+
+      h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+
+      den_all <- q_num_sample/h_sample
+
+      den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+      w_ik <- (1/den_i)*q_num_sample/h_sample
+
+      #theta_1 <- theta_sample-1/(n*n_sam)*(Uupdate.em)%*%t(Uupdate.em)%*%(theta_sample)
+      split_index <- createDataPartition(theta_sample, p = 0.5, list = FALSE)
+      linear_theta <- theta_sample[-split_index]       # 80% of data set
+      lasso_theta <- theta_sample[split_index]         # 20% of data set
+
+      theta_1 <- theta_sample-P%*%(theta_sample)
+      linear_theta1 <- theta_1[-split_index]       # 80% of data set
+      lasso_theta1 <- theta_1[split_index]         # 20% of data set
+
+      linear_hatU.em <- hatU.em[-split_index,]       # 80% of data set
+      lasso_hatU.em <- hatU.em[split_index,]         # 20% of data set
+
+      linear_w <- w_ik[-split_index]       # 80% of data set
+      lasso_w <- w_ik[split_index]         # 20% of data set
+
+      # lambda = (cv.glmnet(lasso_hatU.em, lasso_theta1,
+      #                     weights = lasso_w, intercept = FALSE)$lambda.1se)*6
+      # lambda <- cv.glmnet(hatU.em,theta_1, weights = w_ik, intercept=FALSE)$lambda.1se
+      cv.fit.em[[iter]] <- glmnet(lasso_hatU.em, lasso_theta1,
+                                  weights = lasso_w, intercept = FALSE, lambda = lambda)
+      #cv.glmnet(hatU.em,theta_1, weights = w_ik,penalty.factor=c(rep(0,1),rep(1,p-1)), intercept=FALSE)$lambda.1se) #Estimate FARM model
+      #cv.glmnet(hatU.em,theta_1, weights = w_ik, intercept=FALSE)$lambda.1se
+      #plot(cv.fit.em)
+      cv.fit.coef <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+      if(any(cv.fit.coef!= 0)){
+        linear_hatU.em <- linear_hatU.em[,which(cv.fit.coef!=0)]
+      }
+      else {
+        iter <- iter+1
+        cat("jump")
+        next}
+
+
+      coef_hat_debias <- coef(lm(linear_theta1~0+linear_hatU.em, weights =linear_w ))
+      cov <- vcov(lm(linear_theta1~0+linear_hatU.em, weights =linear_w ))
+      #cat(coef_hat_debias[1:(1+s)]*norm_c)
+      weights <- diag(w_ik)
+      #debias ----
+      phi_hat <-(solve(t(Uupdate.em)%*%weights%*%Uupdate.em))%*%t(Uupdate.em) %*%weights %*% theta_sample
+      #cat(phi_hat*norm_c)
+      #phi_hat <- gamma_prime/norm_c
+      #gamma_hat <- phi_hat - t(hatB) %*% coef_hat_debias
+      coef_hat_em_debias <- rep(0,p)
+      coef_hat_em_debias[which(cv.fit.coef!= 0)] <- coef_hat_debias
+      coef_hat_em_debias <- append(coef_hat_em_debias, phi_hat, after = 0)
+
+      #joint response ???hg
+      bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - Z.em%*%coef_hat_em_debias)^2)) + sum(coef_hat_em_debias!=0)*log(n)
+
+      #add into sliding window
+      beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
+      #calculate mean
+      matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+      #matrix_sigma <- do.call(cbind, sigma_t)
+      #
+      beta_gamma_means <- rowMeans(matrix_beta_gamma)
+
+      fitted_values.em <- matrix(beta_gamma_means, nrow = 1)%*%t(Z.em)
+      residuals_2 <- theta_sample - fitted_values.em
+      WSSR <- sum(w_ik*(residuals_2^2))#
+      sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
+      sigma_t <- sigma_temp #add_to_window(sigma_temp, sigma_t, window_size)
+
+
+
+      #sigma_means <- rowMeans(matrix_sigma)
+
+      #calculate delta
+      delta_s <- abs(sigma_old-sigma_t)
+      delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
+      delta <- max(delta_s, delta_b)
+
+      sigma_old <- sigma_t
+      beta_gamma_old <- beta_gamma_means
+      #theta_t <- theta_debiased
+      iter <- iter+1
+      print(c(delta))
+    }
+    print(ll)
+    results[[ll]] <- list(beta_gamma_old,sigma_old,bic)
+  }
+  minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
+  return(list(coef <- results[[minBIC]][[1]], sigma <- results[[minBIC]][[2]], minBIC))
+
+}
+q_num <- function(a,d, c, theta,resp, Z, beta_gamma_t,sigma_t){
+  pij <- c + (1-c)*(1/(1 + exp(-(as.matrix(theta)%*%a + rep(d, each = length(theta))))))
+  lpij_irt <- resp*log(pij)+(1-resp)*log(1-pij)
+  pi_irt <- exp(rowSums(lpij_irt))
+  #p_reg <- exp(-(((theta-beta_gamma_t%*%t(Z))^2)/(2*sigma_t^2)))/(sqrt(2*pi)*sigma_t)
+  p_reg <- as.vector(dnorm(theta, beta_gamma_t%*%t(Z), sigma_t))
+  num <- p_reg*pi_irt
+  return(num)
+}
+q_num_NA <- function(a, d, c, theta, resp, Z, beta_gamma_t, sigma_t) {
+  # pij
+  pij <- c + (1 - c) * (1 / (1 + exp(-(as.matrix(theta) %*% a + rep(d, each = length(theta))))))
+
+  # mask non NA
+  mask <- !is.na(resp)
+
+  lpij_irt <- matrix(0, nrow = nrow(pij), ncol = ncol(pij))  # 0
+  lpij_irt[mask] <- resp[mask] * log(pij[mask]) + (1 - resp[mask]) * log(1 - pij[mask])
+
+  pi_irt <- exp(rowSums(lpij_irt))  # summing over items
+
+  p_reg <- as.vector(dnorm(theta, beta_gamma_t %*% t(Z), sigma_t))
+  num <- p_reg * pi_irt
+  return(num)
+}
+
+var_num <- function(theta,resp, Z, beta_gamma_t,sigma_t){
+  pij <- 1/(1 + exp(-(as.matrix(theta)%*%a + rep(d, each = length(theta)))))
+  lpij_irt <- resp*log(pij)+(1-resp)*log(1-pij)
+  pi_irt <- exp(rowSums(lpij_irt))
+  #p_reg <- exp(-(((theta-beta_gamma_t%*%t(Z))^2)/(2*sigma_t^2)))/(sqrt(2*pi)*sigma_t)
+  p_reg <- as.vector(dnorm(theta, beta_gamma_t%*%t(Z), sigma_t))
+  num <- p_reg*pi_irt
+  return(num)
+}
+
+# Function to add new results to the sliding window
+add_to_window <- function(new_result, results, window_size) {
+  # Add the new result
+  results <- c(results, list(new_result))
+
+  # If the window exceeds the size, remove the oldest result
+  if (length(results) > window_size) {
+    results <- results[-1]  # Remove the first element
+  }
+
+  return(results)
+}
+variance.cal <- function(theta_matrix, step = 10){
+  #  theta_pv1
+
+  W <- 0  # Within-imputation variance
+  B <- 0  # Between-imputation variance
+  M <- step  # num of Plausible values
+
+  theta_means <- colMeans(theta_matrix) # every dv mean
+
+  grand_mean <- sum(theta_means)/M
+  #  Between-Imputation Variance (B)
+  B <- sum((theta_means-grand_mean)^2)/(M-1)
+  #  Within-Imputation Variance (W)
+  for(i in c(1:ncol(theta_matrix))){
+    W = W + (sd(theta_matrix[,i])^2)
+  }
+
+  # total V
+  V <- W/(ncol(theta_matrix)) + (1 + 1/M) * B
+  return(V)
+}
+variance.sample <- function(theta_matrix, step = 10){
+  #  theta_pv1
+
+  W <- 0  # Within-imputation variance
+  B <- 0  # Between-imputation variance
+  M <- step  # num of Plausible values
+
+  theta_means <- colMeans(theta_matrix) # every dv mean
+
+  grand_mean <- sum(theta_means)/M
+  #  Between-Imputation Variance (B)
+  B <- sum((theta_means-grand_mean)^2)/(M-1)
+  #  Within-Imputation Variance (W)
+  for(i in c(1:ncol(theta_matrix))){
+    W = W + (sd(theta_matrix[,i])^2)
+  }
+
+  # total V
+  V <- W/ncol(theta_matrix) #+ (1 + 1/M) * B
+  return(V)
+}
+direUsage <- function(p, X, main_vars,main, n, resp, J, a, d,c, X_discrete){
+
+  colnames(X) <- paste("X", c(1:ncol(X)), sep = "")
+  stuDat <- X
+  subject <- factor(c(1:n))
+  stuDat <- data.frame(cbind(subject, X))
+
+  hatf_tra <- PCA_extraction(main_vars, X)
+  stuDat <- cbind(stuDat,hatf_tra)
+  colnames(stuDat) <-c("subject",paste("X", c(1:(p)), sep = ""), paste("pc", c(1:ncol(hatf_tra)), sep = ""))
+
+  # 生成题目参数
+  item_params <- data.frame(cbind(
+    item = c(1:J),  # 难度参数范围
+    b = d,  # 区分度参数范围
+    a = a,  # 猜测参数范围
+    c = c
+  ))
+
+  # 生成列名，格式为 i001, i002, ..., i030
+  colnames(resp) <- paste0("i", sprintf("%03d", 1:J))
+  resp0 <- data.frame(cbind(resp, subject))
+
+  itemNames <- paste0("i", sprintf("%03d", 1:J))
+  stuItems <- reshape(data=resp0, varying=itemNames, idvar="subject",
+                      direction="long", v.names="score",
+                      times=itemNames, timevar="key")
+
+  new_itemNames <- (paste0("item",1:J))
+  stuItems$key <- rep(new_itemNames,each=n)
+
+  # 定义测试信息
+  testDat <- data.frame(
+    test = "comp",  # 测试名称
+    subtest = "main",  # 子测试名称
+    location = 0,  # 平均分
+    scale = 1  # 标准差
+  )
+
+  parTab <- item_params %>%
+    mutate(ItemID = new_itemNames,
+           test = "comp",
+           subtest = rep("main",each=J),
+           slope = a,
+           difficulty = -b/a,
+           guessing = c,
+           D = 1)
+
+  parTab <- parTab[c("ItemID","test","subtest","slope","difficulty","guessing","D")]
+
+  re <- paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + ")
+  # Create the formula string
+  main_factors <- ""
+  for(k in c(1:length(main_vars))){
+    main_factors <- paste(main_factors, "+",main_vars[k])
+  }
+  formula_string <- paste("comp ~ 0", main_factors, " +", paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + "))
+
+  # Convert the string to a formula object
+  formula <- as.formula(formula_string)
+
+  # Use Dire::mml with the formula object
+  mmlcomp <- Dire::mml(
+    formula,
+    stuItems = stuItems,
+    stuDat = stuDat,
+    idVar = "subject",
+    dichotParamTab = parTab,
+    testScale = testDat,
+    calcCor = TRUE
+  )
+  library(EdSurvey)
+  # generate plausible values
+  datPVs <- drawPVs(mmlcomp, npv = 10L)$data
+
+  id11 <- stuDat$subject[X[,main[1]] == 1 & X[,main[2]] == 1]
+  result_11 <- (datPVs[as.numeric(datPVs$id) %in% id11,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id10 <- stuDat$subject[X[,main[1]] == 1 & X[,main[2]]  == 0 ]
+  result_10 <-  (datPVs[as.numeric(datPVs$id) %in% id10,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id01 <- stuDat$subject[X[,main[1]] == 0 & X[,main[2]]  == 1 ]
+  result_01 <- (datPVs[as.numeric(datPVs$id) %in% id01,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id00 <- stuDat$subject[X[,main[1]] == 0 & X[,main[2]]  == 0 ]
+  result_00 <-  (datPVs[as.numeric(datPVs$id) %in% id00,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  n <- length(main)
+  # First create all possible combinations of 5 binary variables (2^5 = 32 groups)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # Assuming 'main' contains names of your 5 binary variables
+
+  # Create a list to store results for all subgroups
+  subgroup_results <- list()
+  # Loop through all possible combinations
+  for (i in 1:nrow(combinations)) {
+
+    condition_str <- paste(
+      sapply(1:n, function(j) {
+        paste0("X_discrete[,", j, "] == ", combinations[i, j])
+      }),
+      collapse = " & "
+    )
+    # Evaluate the string expression to get a logical vector
+    condition <- eval(parse(text = condition_str))
+
+    # Get IDs for this subgroup
+    subgroup_ids <- stuDat$subject[condition]
+
+    # Store results (excluding ID column)
+    subgroup_results[[i]] <- datPVs[as.numeric(datPVs$id) %in% subgroup_ids, -1]
+
+    # Optional: name each subgroup (e.g., "00000", "00001", etc.)
+    names(subgroup_results)[i] <- paste0("result_", paste(combinations[i, ], collapse = ""))
+  }
+
+  # Now you can access results for any subgroup, e.g.:
+  # result_10101 <- subgroup_results[["result_10101"]]
+  result <-  (datPVs[,-1]) #%>% select(paste0("_dire", c(1:10)))
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in subgroup_results) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result, step = 10))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result, step = 10))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+}
+direUsage_TM <- function(p, X, main_vars,main, n, resp, J, a, d,c, X_discrete){
+
+  colnames(X) <- paste("X", c(1:ncol(X)), sep = "")
+  stuDat <- X
+  subject <- factor(c(1:n))
+  stuDat <- data.frame(cbind(subject, X))
+
+  hatf_tra <- PCA_extraction_full(main_vars, X)
+  stuDat <- cbind(stuDat,hatf_tra)
+  colnames(stuDat) <-c("subject",paste("X", c(1:(p)), sep = ""), paste("pc", c(1:ncol(hatf_tra)), sep = ""))
+
+  # 生成题目参数
+  item_params <- data.frame(cbind(
+    item = c(1:J),  # 难度参数范围
+    b = d,  # 区分度参数范围
+    a = a,  # 猜测参数范围
+    c = c
+  ))
+
+  # 生成列名，格式为 i001, i002, ..., i030
+  colnames(resp) <- paste0("i", sprintf("%03d", 1:J))
+  resp0 <- data.frame(cbind(resp, subject))
+
+  itemNames <- paste0("i", sprintf("%03d", 1:J))
+  stuItems <- reshape(data=resp0, varying=itemNames, idvar="subject",
+                      direction="long", v.names="score",
+                      times=itemNames, timevar="key")
+
+  new_itemNames <- (paste0("item",1:J))
+  stuItems$key <- rep(new_itemNames,each=n)
+
+  # 定义测试信息
+  testDat <- data.frame(
+    test = "comp",  # 测试名称
+    subtest = "main",  # 子测试名称
+    location = 250,  # 平均分
+    scale = 50  # 标准差
+  )
+
+  parTab <- item_params %>%
+    mutate(ItemID = new_itemNames,
+           test = "comp",
+           subtest = rep("main",each=J),
+           slope = a,
+           difficulty = -b/a,
+           guessing = c,
+           D = 1)
+
+  parTab <- parTab[c("ItemID","test","subtest","slope","difficulty","guessing","D")]
+  re <- paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + ")
+  # Create the formula string
+  main_factors <- ""
+  for(k in c(1:length(main_vars))){
+    main_factors <- paste(main_factors, "+",main_vars[k])
+  }
+  formula_string <- paste("comp ~ 0 ", main_factors, " +", paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + "))
+
+  # Convert the string to a formula object
+  formula <- as.formula(formula_string)
+
+  # Use Dire::mml with the formula object
+  mmlcomp <- Dire::mml(
+    formula,
+    stuItems = stuItems,
+    stuDat = stuDat,
+    idVar = "subject",
+    dichotParamTab = parTab,
+    testScale = testDat,
+    calcCor = TRUE
+  )
+  library(EdSurvey)
+  # generate plausible values
+  datPVs <- drawPVs(mmlcomp, npv = 10L)$data
+
+  id11 <- stuDat$subject[X[,main[1]] == 1 & X[,main[2]] == 1]
+  result_11 <- (datPVs[as.numeric(datPVs$id) %in% id11,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id10 <- stuDat$subject[X[,main[1]] == 1 & X[,main[2]]  == 0 ]
+  result_10 <-  (datPVs[as.numeric(datPVs$id) %in% id10,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id01 <- stuDat$subject[X[,main[1]] == 0 & X[,main[2]]  == 1 ]
+  result_01 <- (datPVs[as.numeric(datPVs$id) %in% id01,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id00 <- stuDat$subject[X[,main[1]] == 0 & X[,main[2]]  == 0 ]
+  result_00 <-  (datPVs[as.numeric(datPVs$id) %in% id00,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  n <- length(main)
+  # First create all possible combinations of 5 binary variables (2^5 = 32 groups)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # Assuming 'main' contains names of your 5 binary variables
+
+  # Create a list to store results for all subgroups
+  subgroup_results <- list()
+  # Loop through all possible combinations
+  for (i in 1:nrow(combinations)) {
+
+    condition_str <- paste(
+      sapply(1:n, function(j) {
+        paste0("X_discrete[,", j, "] == ", combinations[i, j])
+      }),
+      collapse = " & "
+    )
+    # Evaluate the string expression to get a logical vector
+    condition <- eval(parse(text = condition_str))
+
+    # Get IDs for this subgroup
+    subgroup_ids <- stuDat$subject[condition]
+
+    # Store results (excluding ID column)
+    subgroup_results[[i]] <- datPVs[as.numeric(datPVs$id) %in% subgroup_ids, -1]
+
+    # Optional: name each subgroup (e.g., "00000", "00001", etc.)
+    names(subgroup_results)[i] <- paste0("result_", paste(combinations[i, ], collapse = ""))
+  }
+
+  # Now you can access results for any subgroup, e.g.:
+  # result_10101 <- subgroup_results[["result_10101"]]
+  result <-  (datPVs[,-1]) #%>% select(paste0("_dire", c(1:10)))
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in subgroup_results) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result, step = 10))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result, step = 10))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+}
+direUsage_real_2 <- function(p, X, main_vars,main, n, resp, J, a, d,c){
+
+  colnames(X) <- paste("X", c(1:ncol(X)), sep = "")
+  stuDat <- X
+  subject <- factor(c(1:n))
+  stuDat <- data.frame(cbind(subject, X))
+
+  hatf_tra <- PCA_extraction(main_vars, X)
+  stuDat <- cbind(stuDat,hatf_tra)
+  colnames(stuDat) <-c("subject",paste("X", c(1:(p)), sep = ""), paste("pc", c(1:ncol(hatf_tra)), sep = ""))
+
+  # 生成题目参数
+  item_params <- data.frame(cbind(
+    item = c(1:J),  # 难度参数范围
+    b = d,  # 区分度参数范围
+    a = a,  # 猜测参数范围
+    c = c
+  ))
+
+  # 生成列名，格式为 i001, i002, ..., i030
+  colnames(resp) <- paste0("i", sprintf("%03d", 1:J))
+  resp0 <- data.frame(cbind(resp, subject))
+
+  itemNames <- paste0("i", sprintf("%03d", 1:J))
+  stuItems <- reshape(data=resp0, varying=itemNames, idvar="subject",
+                      direction="long", v.names="score",
+                      times=itemNames, timevar="key")
+
+  new_itemNames <- (paste0("item",1:J))
+  stuItems$key <- rep(new_itemNames,each=n)
+
+  # 定义测试信息
+  testDat <- data.frame(
+    test = "comp",  # 测试名称
+    subtest = "main",  # 子测试名称
+    location = 250,  # 平均分
+    scale = 50  # 标准差
+  )
+
+  parTab <- item_params %>%
+    mutate(ItemID = new_itemNames,
+           test = "comp",
+           subtest = rep("main",each=J),
+           slope = a,
+           difficulty = -b/a,
+           guessing = c,
+           D = 1)
+
+  parTab <- parTab[c("ItemID","test","subtest","slope","difficulty","guessing","D")]
+
+  re <- paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + ")
+  # Create the formula string
+  main_factors <- ""
+  for(k in c(1:length(main_vars))){
+    main_factors <- paste(main_factors, "+",main_vars[k])
+  }
+  formula_string <- paste("comp ~ 0 ", main_factors, " +", paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + "))
+
+  # Convert the string to a formula object
+  formula <- as.formula(formula_string)
+
+  # Use Dire::mml with the formula object
+  mmlcomp <- Dire::mml(
+    formula,
+    stuItems = stuItems,
+    stuDat = stuDat,
+    idVar = "subject",
+    dichotParamTab = parTab,
+    testScale = testDat,
+    calcCor = TRUE
+  )
+  library(EdSurvey)
+  # generate plausible values
+  datPVs <- drawPVs(mmlcomp, npv = 10L)$data
+
+  n <- length(main)
+  # First create all possible combinations of 5 binary variables (2^5 = 32 groups)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # Assuming 'main' contains names of your 5 binary variables
+
+  # Create a list to store results for all subgroups
+  subgroup_results <- list()
+
+  # Loop through all possible combinations
+  for (i in 1:nrow(combinations)) {
+
+    condition_str <- paste(
+      sapply(1:n, function(j) {
+        paste0("X[,main[", j, "]] == ", combinations[i, j])
+      }),
+      collapse = " & "
+    )
+
+    # Evaluate the string expression to get a logical vector
+    condition <- eval(parse(text = condition_str))
+
+    # Get IDs for this subgroup
+    subgroup_ids <- stuDat$subject[condition]
+
+    # Store results (excluding ID column)
+    subgroup_results[[i]] <- datPVs[as.numeric(datPVs$id) %in% subgroup_ids, -1]
+
+    # Optional: name each subgroup (e.g., "00000", "00001", etc.)
+    names(subgroup_results)[i] <- paste0("result_", paste(combinations[i, ], collapse = ""))
+  }
+
+  # Now you can access results for any subgroup, e.g.:
+  # result_10101 <- subgroup_results[["result_10101"]]
+  result <-  (datPVs[,-1]) #%>% select(paste0("_dire", c(1:10)))
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in subgroup_results) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result, step = 10))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result, step = 10))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+}
+direUsage_real <- function(p, X, main_vars,main, n, resp, J, a, d,c, X_discrete,theta){
+
+  colnames(X) <- paste("X", c(1:ncol(X)), sep = "")
+  stuDat <- X
+  subject <- factor(c(1:n))
+  stuDat <- data.frame(cbind(subject, X))
+
+  hatf_tra <- PCA_extraction(main_vars, X)
+  stuDat <- cbind(stuDat,hatf_tra)
+  colnames(stuDat) <-c("subject",paste("X", c(1:(p)), sep = ""), paste("pc", c(1:ncol(hatf_tra)), sep = ""))
+
+  # 生成题目参数
+  item_params <- data.frame(cbind(
+    item = c(1:J),  # 难度参数范围
+    b = d,  # 区分度参数范围
+    a = a,  # 猜测参数范围
+    c = c
+  ))
+
+  # 生成列名，格式为 i001, i002, ..., i030
+  colnames(resp) <- paste0("i", sprintf("%03d", 1:J))
+  resp0 <- data.frame(cbind(resp, subject))
+
+  itemNames <- paste0("i", sprintf("%03d", 1:J))
+  stuItems <- reshape(data=resp0, varying=itemNames, idvar="subject",
+                      direction="long", v.names="score",
+                      times=itemNames, timevar="key")
+
+  new_itemNames <- (paste0("item",1:J))
+  stuItems$key <- rep(new_itemNames,each=n)
+
+  # 定义测试信息
+  testDat <- data.frame(
+    test = "comp",  # 测试名称
+    subtest = "main",  # 子测试名称
+    location = 250,  # 平均分
+    scale = 50  # 标准差
+  )
+
+  parTab <- item_params %>%
+    mutate(ItemID = new_itemNames,
+           test = "comp",
+           subtest = rep("main",each=J),
+           slope = a,
+           difficulty = -b/a,
+           guessing = c,
+           D = 1)
+
+  parTab <- parTab[c("ItemID","test","subtest","slope","difficulty","guessing","D")]
+
+  re <- paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + ")
+  # Create the formula string
+  main_factors <- ""
+  for(k in c(1:length(main_vars))){
+    main_factors <- paste(main_factors, "+",main_vars[k])
+  }
+  formula_string <- paste("comp ~ 0 ", main_factors, " +", paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + "))
+
+  # Convert the string to a formula object
+  formula <- as.formula(formula_string)
+
+  # Use Dire::mml with the formula object
+  mmlcomp <- Dire::mml(
+    formula,
+    stuItems = stuItems,
+    stuDat = stuDat,
+    idVar = "subject",
+    dichotParamTab = parTab,
+    testScale = testDat,
+    calcCor = TRUE
+  )
+  library(EdSurvey)
+  y_hat <- cbind(X[,main],hatf_tra) %*% mmlcomp$coefficients[1:(length(main)+ncol(hatf_tra))]                    # predicted values
+  SS_res <- sum((theta - y_hat)^2)             # residual sum of squares
+  SS_tot <- sum((theta - mean(theta))^2)           # total sum of squares
+
+  R_squared <- 1 - (SS_res / SS_tot)
+  cat("R_squared:",R_squared )
+  # generate plausible values
+  datPVs <- drawPVs(mmlcomp, npv = 10L)$data
+
+  n <- length(main)
+  # First create all possible combinations of 5 binary variables (2^5 = 32 groups)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # Assuming 'main' contains names of your 5 binary variables
+
+  # Create a list to store results for all subgroups
+  subgroup_results <- list()
+  X_discrete <- apply(X[, main], 2, function(col) {
+    ifelse(col > mean(col, na.rm = TRUE), 1, 0)
+  })
+  # Loop through all possible combinations
+  for (i in 1:nrow(combinations)) {
+
+    condition_str <- paste(
+      sapply(1:n, function(j) {
+        paste0("X_discrete[,", j, "] == ", combinations[i, j])
+      }),
+      collapse = " & "
+    )
+    # Evaluate the string expression to get a logical vector
+    condition <- eval(parse(text = condition_str))
+
+    # Get IDs for this subgroup
+    subgroup_ids <- stuDat$subject[condition]
+
+    # Store results (excluding ID column)
+    subgroup_results[[i]] <- datPVs[as.numeric(datPVs$id) %in% subgroup_ids, -1]
+
+    # Optional: name each subgroup (e.g., "00000", "00001", etc.)
+    names(subgroup_results)[i] <- paste0("result_", paste(combinations[i, ], collapse = ""))
+  }
+
+  # Now you can access results for any subgroup, e.g.:
+  # result_10101 <- subgroup_results[["result_10101"]]
+  result <-  (datPVs[,-1]) #%>% select(paste0("_dire", c(1:10)))
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in subgroup_results) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result, step = 10))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result, step = 10))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+}
+
+direUsage_old <- function(X, main_vars,main, n, resp, J, a, d){
+
+  colnames(X) <- paste("X", c(1:ncol(X)), sep = "")
+  stuDat <- X
+  subject <- factor(c(1:n))
+  stuDat <- data.frame(cbind(subject, X))
+
+  hatf_tra <- PCA_extraction(main_vars, X)
+  stuDat <- cbind(stuDat,hatf_tra)
+  colnames(stuDat) <-c("subject",paste("X", c(1:(p)), sep = ""), paste("pc", c(1:ncol(hatf_tra)), sep = ""))
+
+  # 生成题目参数
+  item_params <- data.frame(cbind(
+    item = c(1:J),  # 难度参数范围
+    b = d,  # 区分度参数范围
+    a = a,  # 猜测参数范围
+    c = 0
+  ))
+
+  # 生成列名，格式为 i001, i002, ..., i030
+  colnames(resp) <- paste0("i", sprintf("%03d", 1:J))
+  resp0 <- data.frame(cbind(resp, subject))
+
+  itemNames <- paste0("i", sprintf("%03d", 1:J))
+  stuItems <- reshape(data=resp0, varying=itemNames, idvar="subject",
+                      direction="long", v.names="score",
+                      times=itemNames, timevar="key")
+
+  new_itemNames <- (paste0("item",1:J))
+  stuItems$key <- rep(new_itemNames,each=n)
+
+  # 定义测试信息
+  testDat <- data.frame(
+    test = "comp",  # 测试名称
+    subtest = "main",  # 子测试名称
+    location = 250,  # 平均分
+    scale = 50  # 标准差
+  )
+
+  parTab <- item_params %>%
+    mutate(ItemID = new_itemNames,
+           test = "comp",
+           subtest = rep("main",each=J),
+           slope = a,
+           difficulty = -b/a,
+           guessing = c,
+           D = 1)
+
+  parTab <- parTab[c("ItemID","test","subtest","slope","difficulty","guessing","D")]
+
+  re <- paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + ")
+  # Create the formula string
+  main_factors <- ""
+  for(k in c(1:length(main_vars))){
+    main_factors <- paste(main_factors, "+",main_vars[k])
+  }
+  formula_string <- paste("comp ~ 0 ", main_factors, " +", paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + "))
+
+  # Convert the string to a formula object
+  formula <- as.formula(formula_string)
+
+  # Use Dire::mml with the formula object
+  mmlcomp <- Dire::mml(
+    formula,
+    stuItems = stuItems,
+    stuDat = stuDat,
+    idVar = "subject",
+    dichotParamTab = parTab,
+    testScale = testDat,
+    calcCor = TRUE
+  )
+  #return(list(mmlcomp[1:4],mmlcomp[5], hatf_tra ))
+  library(EdSurvey)
+  # generate plausible values
+  datPVs <- drawPVs(mmlcomp, npv = 10L)$data
+
+  id11 <- stuDat$subject[X[,main[1]] == 1 & X[,main[2]] == 1]
+  result_11 <- (datPVs[as.numeric(datPVs$id) %in% id11,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id10 <- stuDat$subject[X[,main[1]] == 1 & X[,main[2]]  == 0 ]
+  result_10 <-  (datPVs[as.numeric(datPVs$id) %in% id10,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id01 <- stuDat$subject[X[,main[1]] == 0 & X[,main[2]]  == 1 ]
+  result_01 <- (datPVs[as.numeric(datPVs$id) %in% id01,-1])# %>% select(paste0("_dire", c(1:10)))
+
+  id00 <- stuDat$subject[X[,main[1]] == 0 & X[,main[2]]  == 0 ]
+  result_00 <-  (datPVs[as.numeric(datPVs$id) %in% id00,-1])# %>% select(paste0("_dire", c(1:10)))
+
+    # Now you can access results for any subgroup, e.g.:
+  # result_10101 <- subgroup_results[["result_10101"]]
+  result <-  (datPVs[,-1]) #%>% select(paste0("_dire", c(1:10)))
+
+  return(list(mean = mean(colMeans(result)), mean11 = mean(colMeans(result_11)), mean10 = mean(colMeans(result_10)),
+              mean01 = mean(colMeans(result_01)), mean00 =  mean(colMeans(result_00)), var = variance.sample(result, step = 10),
+              var11 = variance.sample(result_11, step = 10), var10 = variance.sample(result_10, step = 10),
+              var01 = variance.sample(result_01, step = 10), var00 = variance.sample(result_00, step = 10)))
+}
+
+direUsage_manual <- function(p, X, main_vars,main, n, resp, J, a, d,c, X_discrete){
+
+  colnames(X) <- paste("X", c(1:ncol(X)), sep = "")
+  stuDat <- X
+  subject <- factor(c(1:n))
+  stuDat <- data.frame(cbind(subject, X))
+
+  hatf_tra <- PCA_extraction(main_vars, X)
+  stuDat <- cbind(stuDat,hatf_tra)
+  colnames(stuDat) <-c("subject",paste("X", c(1:(p)), sep = ""), paste("pc", c(1:ncol(hatf_tra)), sep = ""))
+
+  # 生成题目参数
+  item_params <- data.frame(cbind(
+    item = c(1:J),  # 难度参数范围
+    b = d,  # 区分度参数范围
+    a = a,  # 猜测参数范围
+    c = c
+  ))
+
+  # 生成列名，格式为 i001, i002, ..., i030
+  colnames(resp) <- paste0("i", sprintf("%03d", 1:J))
+  resp0 <- data.frame(cbind(resp, subject))
+
+  itemNames <- paste0("i", sprintf("%03d", 1:J))
+  stuItems <- reshape(data=resp0, varying=itemNames, idvar="subject",
+                      direction="long", v.names="score",
+                      times=itemNames, timevar="key")
+
+  new_itemNames <- (paste0("item",1:J))
+  stuItems$key <- rep(new_itemNames,each=n)
+
+  # 定义测试信息
+  testDat <- data.frame(
+    test = "comp",  # 测试名称
+    subtest = "main",  # 子测试名称
+    location = 0,  # 平均分
+    scale = 1  # 标准差
+  )
+
+  parTab <- item_params %>%
+    mutate(ItemID = new_itemNames,
+           test = "comp",
+           subtest = rep("main",each=J),
+           slope = a,
+           difficulty = -b/a,
+           guessing = c,
+           D = 1)
+
+  parTab <- parTab[c("ItemID","test","subtest","slope","difficulty","guessing","D")]
+
+  re <- paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + ")
+  # Create the formula string
+  main_factors <- ""
+  for(k in c(1:length(main_vars))){
+    main_factors <- paste(main_factors, "+",main_vars[k])
+  }
+  formula_string <- paste("comp ~ 0 ", main_factors, " +", paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + "))
+
+  # Convert the string to a formula object
+  formula <- as.formula(formula_string)
+
+  # Use Dire::mml with the formula object
+  mmlcomp <- Dire::mml(
+    formula,
+    stuItems = stuItems,
+    stuDat = stuDat,
+    idVar = "subject",
+    dichotParamTab = parTab,
+    testScale = testDat,
+    calcCor = TRUE
+  )
+  return(list(coef = mmlcomp$coefficients[1:(length(main)+ncol(hatf_tra))], sigma =mmlcomp$coefficients[(z)], hatf_tra ))
+}
+
+
+draw_PVs_manual_old<- function (beta_hat, sigma, U, X_p ,X, a, d, main, step, theta) {
+  # Define quadrature points (30 points from -4 to 4)
+  # Compute EAP estimates for each examinee
+  EAP_estimates2 <- numeric(n)
+  EAP_variance2 <- numeric(n)
+  Q <- 30
+  t_q <- seq(-4 , 4, length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, b, t_q) {
+    likelihood <- sapply(t_q, function(t) {
+      P <- 1 / (1 + exp(-a * (t - b)))  # Compute P(X_ij | theta)
+      prod((P^response_vector) * ((1 - P)^(1 - response_vector)))  # Compute likelihood
+    })
+    return(likelihood)
+  }
+  #theta_pre <- (F %*% (beta) + (E) %*% veta) /norm_c
+  for (i in 1:n) {
+    ################
+
+    prior_f2 <- dnorm(t_q, mean = c(U[i,], X_p[i,])%*%beta_hat, sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, -(d/a), t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates2[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance2[i]  <- sum((t_q-EAP_estimates2[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+    ################
+  }
+  theta[1:10]
+  EAP_estimates2[1:10]
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates2)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv2 <- vector(mode = "numeric",length = n*step)
+  for(i in 1:n){
+    for(j in 1:step)
+    {
+      theta_pv2[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates2[i], sqrt(EAP_variance2[i]))
+    }
+  }
+  X.1 <- unlist(lapply(X[,main[1]], function(x) {rep(x,step)}))
+  X.2 <- unlist(lapply(X[,main[2]], function(x) {rep(x,step)}))
+  result11 <- theta_pv2[X.1== 1 & X.2==1]
+  result10 <- theta_pv2[X.1== 1 & X.2==0]
+  result01 <- theta_pv2[X.1== 0 & X.2==1]
+  result00 <- theta_pv2[X.1== 0 & X.2==0]
+  result11_m <- matrix(result11, nrow = sum(X[,main[1]]== 1 & X[,main[2]]==1), ncol = step, byrow = TRUE)
+  result10_m <- matrix(result10, nrow = sum(X[,main[1]]== 1 & X[,main[2]]==0), ncol = step, byrow = TRUE)
+  result01_m <- matrix(result01, nrow = sum(X[,main[1]]== 0 & X[,main[2]]==1), ncol = step, byrow = TRUE)
+  result00_m <- matrix(result00, nrow = sum(X[,main[1]]== 0 & X[,main[2]]==0), ncol = step, byrow = TRUE)
+  result_m <- matrix(theta_pv2, nrow = n, ncol = step, byrow = TRUE)
+  return(list(mean = mean(theta_pv2), mean11 = mean(result11 ), mean10 = mean(result10),
+              mean01 = mean(result01 ), mean00 =  mean(result00)
+              , var = variance.sample(result_m, step),
+              var11 = variance.sample(result11_m, step), var10 = variance.sample(result10_m, step),
+              var01 = variance.sample(result01_m, step), var00 = variance.sample(result00_m, step)))
+
+}
+
+draw_PVs_manual_real<- function (n, resp, beta_hat, sigma, U, X_p ,X, a, d,c, main, step, theta, X_discrete) {
+  # Define quadrature points (30 points from -4 to 4)
+  # Compute EAP estimates for each examinee
+  # Define quadrature points (30 points from -4 to 4)
+  # Compute EAP estimates for each examinee
+  EAP_estimates2 <- numeric(n)
+  EAP_variance2 <- numeric(n)
+  Q <- 30
+  t_q <- seq(-3.2+mean(theta), 3.2+mean(theta), length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, b, c, t_q) {
+    valid_idx <- which(!is.na(response_vector))
+    a <- a[valid_idx]
+    b <- b[valid_idx]
+    c <- c[valid_idx]
+    response_vector <- response_vector[valid_idx]
+
+    likelihood <- sapply(t_q, function(t) {
+      P <- c + (1 - c) * (1 / (1 + exp(-a * (t - b))))  # P(X_ij | theta)
+      prod((P^response_vector) * ((1 - P)^(1 - response_vector)))
+    })
+
+    return(likelihood)
+  }
+  #theta_pre <- (F %*% (beta) + (E) %*% veta) /norm_c
+  for (i in 1:n) {
+    ################
+
+    prior_f2 <- dnorm(t_q, mean = c(U[i,],X_p[i,])%*%beta_hat, sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, -(d/a),c, t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates2[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance2[i]  <- sum((t_q-EAP_estimates2[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+    ################
+  }
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates2)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv2 <- vector(mode = "numeric",length = n*step)
+  for(i in 1:n){
+    for(j in 1:step)
+    {
+      theta_pv2[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates2[i], sqrt(EAP_variance2[i]))
+    }
+  }
+  X.rep <- vector("list", length(main))
+  for(i in c(1:length(main))){
+    X.rep[[i]] <- unlist(lapply(X_discrete[,i], function(x) {rep(x,step)}))
+  }
+  n <- length(main)
+  # First create all possible combinations (32 groups for 5 binary variables)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # main contains your 5 binary variable names
+
+  # Initialize a list to store all 32 result matrices
+  result_list <- vector("list", nrow(combinations))
+
+  for(i in 1:nrow(combinations)) {
+    # Build the logical condition for this combination
+    condition <-
+      X.rep[[1]] == combinations[i,1] &
+      X.rep[[2]] == combinations[i,2] &
+      X.rep[[3]] == combinations[i,3]
+    # &
+    # X.rep[[4]] == combinations[i,4] &
+    # X.rep[[5]] == combinations[i,5]
+
+    # Get theta values for this subgroup
+    subgroup_theta <- theta_pv2[condition]
+
+    # Calculate number of subjects in this subgroup
+    n_subjects <- sum(condition)/step  # Adjust for repeated measures
+
+    # Store as matrix (subjects × steps)
+    result_list[[i]] <- matrix(subgroup_theta,
+                               nrow = n_subjects,
+                               ncol = step,
+                               byrow = TRUE)
+
+  }
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in result_list) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+
+
+  # # Now you can access any subgroup, e.g.:
+  # # result_10101 <- result_list[["result_10101"]]
+  # return(list(mean = mean(theta_pv2), mean11 = mean(result11 ), mean10 = mean(result10),
+  #             mean01 = mean(result01 ), mean00 =  mean(result00)
+  #             , var = variance.sample(result_m, step),
+  #             var11 = variance.sample(result11_m, step), var10 = variance.sample(result10_m, step),
+  #             var01 = variance.sample(result01_m, step), var00 = variance.sample(result00_m, step)))
+
+}
+
+draw_PVs_manual_real_8<- function (n, resp, beta_hat, sigma, U, X_p ,X, a, d,c, main, step, theta, X_discrete) {
+  # Define quadrature points (30 points from -4 to 4)
+  # Compute EAP estimates for each examinee
+  # Define quadrature points (30 points from -4 to 4)
+  # Compute EAP estimates for each examinee
+  EAP_estimates2 <- numeric(n)
+  EAP_variance2 <- numeric(n)
+  Q <- 30
+  t_q <- seq(-2.8+mean(theta), 2.8+mean(theta), length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, b,c, t_q) {
+    likelihood <- sapply(t_q, function(t) {
+      P <- c + (1-c)*(1 / (1 + exp(-a * (t - b))))  # Compute P(X_ij | theta)
+      prod((P^response_vector) * ((1 - P)^(1 - response_vector)))  # Compute likelihood
+    })
+    return(likelihood)
+  }
+  #theta_pre <- (F %*% (beta) + (E) %*% veta) /norm_c
+  for (i in 1:n) {
+    ################
+
+    prior_f2 <- dnorm(t_q, mean = c(U[i,], X_p[i,])%*%beta_hat, sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, -(d/a), c,t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates2[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance2[i]  <- sum((t_q-EAP_estimates2[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+    ################
+  }
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates2)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv2 <- vector(mode = "numeric",length = n*step)
+  for(i in 1:n){
+    for(j in 1:step)
+    {
+      theta_pv2[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates2[i], sqrt(EAP_variance2[i]))
+    }
+  }
+  X.rep <- vector("list", length(main))
+  for(i in c(1:length(main))){
+    X.rep[[i]] <- unlist(lapply(X_discrete[,i], function(x) {rep(x,step)}))
+  }
+  #X.1 <- unlist(lapply(X[,main[1]], function(x) {rep(x,step)}))
+  #X.2 <- unlist(lapply(X[,5], function(x) {rep(x,step)}))
+  n <- length(main)
+  # First create all possible combinations (32 groups for 5 binary variables)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # main contains your 5 binary variable names
+
+  # Initialize a list to store all 32 result matrices
+  result_list <- vector("list", nrow(combinations))
+
+  for(i in 1:nrow(combinations)) {
+    # Build the logical condition for this combination
+    condition <-
+      X.rep[[1]] == combinations[i,1] &
+      X.rep[[2]] == combinations[i,2]
+    #  &
+    #  X.rep[[3]] == combinations[i,3]
+    # &
+    # X.rep[[4]] == combinations[i,4] &
+    # X.rep[[5]] == combinations[i,5]
+
+    # Get theta values for this subgroup
+    subgroup_theta <- theta_pv2[condition]
+
+    # Calculate number of subjects in this subgroup
+    n_subjects <- sum(condition)/step  # Adjust for repeated measures
+
+    # Store as matrix (subjects × steps)
+    result_list[[i]] <- matrix(subgroup_theta,
+                               nrow = n_subjects,
+                               ncol = step,
+                               byrow = TRUE)
+
+  }
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in result_list) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+
+
+  # # Now you can access any subgroup, e.g.:
+  # # result_10101 <- result_list[["result_10101"]]
+  # return(list(mean = mean(theta_pv2), mean11 = mean(result11 ), mean10 = mean(result10),
+  #             mean01 = mean(result01 ), mean00 =  mean(result00)
+  #             , var = variance.sample(result_m, step),
+  #             var11 = variance.sample(result11_m, step), var10 = variance.sample(result10_m, step),
+  #             var01 = variance.sample(result01_m, step), var00 = variance.sample(result00_m, step)))
+
+}
+
+draw_PVs_manual <- function (n, resp, beta_hat, sigma, U, X_p ,X, a, d,c, main, step, theta, X_discrete) {
+  # Define quadrature points (30 points from -4 to 4)
+  # Compute EAP estimates for each examinee
+  EAP_estimates <- numeric(n)
+  EAP_variance <- numeric(n)
+  Q <- 30
+  t_q <- seq(-4, 4, length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, b, t_q) {
+    likelihood <- sapply(t_q, function(t) {
+      P <- c + (1-c)*(1 / (1 + exp(-a * (t - b))))  # Compute P(X_ij | theta)
+      prod((P^response_vector) * ((1 - P)^(1 - response_vector)))  # Compute likelihood
+    })
+    return(likelihood)
+  }
+  #theta_pre <- (F %*% (beta) + (E) %*% veta) /norm_c
+  for (i in 1:n) {
+    ################
+
+    prior_f2 <- dnorm(t_q, mean = c(U[i,], X_p[i,])%*%beta_hat, sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, -(d/a), t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance[i]  <- sum((t_q-EAP_estimates[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+    ################
+  }
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv <- vector(mode = "numeric",length = n*step)
+  for(i in 1:n){
+    for(j in 1:step)
+    {
+      set.seed(i*100+j)
+      theta_pv[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates[i], sqrt(EAP_variance[i]))
+    }
+  }
+
+  # X.rep <- vector("list", length(main))
+  # for(i in c(1:length(main))){
+  #   X.rep[[i]] <- unlist(lapply(X[,main[i]], function(x) {rep(x,step)}))
+  # }
+  X.rep <- vector("list", length(main))
+  for(i in c(1:length(main))){
+    X.rep[[i]] <- unlist(lapply(X_discrete[,i], function(x) {rep(x,step)}))
+  }
+  n <- length(main)
+  # First create all possible combinations (32 groups for 5 binary variables)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # main contains your 5 binary variable names
+
+  # Initialize a list to store all 32 result matrices
+  result_list <- vector("list", nrow(combinations))
+
+  for(i in 1:nrow(combinations)) {
+    # Build the logical condition for this combination
+    condition <-
+      X.rep[[1]] == combinations[i,1] &
+      X.rep[[2]] == combinations[i,2] &
+      X.rep[[3]] == combinations[i,3]  &
+      X.rep[[4]] == combinations[i,4] &
+      X.rep[[5]] == combinations[i,5]
+
+    # Get theta values for this subgroup
+    subgroup_theta <- theta_pv[condition]
+
+    # Calculate number of subjects in this subgroup
+    n_subjects <- sum(condition)/step  # Adjust for repeated measures
+
+    # Store as matrix (subjects × steps)
+    result_list[[i]] <- matrix(subgroup_theta,
+                               nrow = n_subjects,
+                               ncol = step,
+                               byrow = TRUE)
+
+  }
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in result_list) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+
+
+  # # Now you can access any subgroup, e.g.:
+  # # result_10101 <- result_list[["result_10101"]]
+  # return(list(mean = mean(theta_pv2), mean11 = mean(result11 ), mean10 = mean(result10),
+  #             mean01 = mean(result01 ), mean00 =  mean(result00)
+  #             , var = variance.sample(result_m, step),
+  #             var11 = variance.sample(result11_m, step), var10 = variance.sample(result10_m, step),
+  #             var01 = variance.sample(result01_m, step), var00 = variance.sample(result00_m, step)))
+
+}
+
+draw_PVs_true<- function (n, resp,meanX, sigma,X, a, d, c, main, step, theta, X_discrete) {
+  # Define quadrature points (30 points from -4 to 4)
+  EAP_estimates2 <- numeric(n)
+  EAP_variance2 <- numeric(n)
+  Q <- 30
+  t_q <- seq(-4+mean(meanX), 4+mean(meanX), length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, b, c, t_q) {
+    likelihood <- sapply(t_q, function(t) {
+      P <- c + (1-c)*(1 / (1 + exp(-a * (t - b))))  # Compute P(X_ij | theta)
+      prod((P^response_vector) * ((1 - P)^(1 - response_vector)))  # Compute likelihood
+    })
+    return(likelihood)
+  }
+  #theta_pre <- (F %*% (beta) + (E) %*% veta) /norm_c
+  for (i in 1:n) {
+    ################
+
+    prior_f2 <- dnorm(t_q, mean = meanX[i,], sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, -(d/a), c, t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates2[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance2[i]  <- sum((t_q-EAP_estimates2[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+    ################
+  }
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates2)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv2 <- vector(mode = "numeric",length = n*step)
+  for(i in 1:n){
+    for(j in 1:step)
+    {
+      theta_pv2[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates2[i], sqrt(EAP_variance2[i]))
+    }
+  }
+
+  # X.rep <- vector("list", length(main))
+  # for(i in c(1:length(main))){
+  #   X.rep[[i]] <- unlist(lapply(X[,main[i]], function(x) {rep(x,step)}))
+  # }
+  X.rep <- vector("list", length(main))
+  for(i in c(1:length(main))){
+    X.rep[[i]] <- unlist(lapply(X_discrete[,i], function(x) {rep(x,step)}))
+  }
+  n <- length(main)
+  # First create all possible combinations (32 groups for 5 binary variables)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # main contains your 5 binary variable names
+
+  # Initialize a list to store all 32 result matrices
+  result_list <- vector("list", nrow(combinations))
+
+  for(i in 1:nrow(combinations)) {
+    # Build the logical condition for this combination
+    condition <-
+      X.rep[[1]] == combinations[i,1] &
+      X.rep[[2]] == combinations[i,2] &
+      X.rep[[3]] == combinations[i,3]  &
+      X.rep[[4]] == combinations[i,4] &
+      X.rep[[5]] == combinations[i,5]
+
+    # Get theta values for this subgroup
+    subgroup_theta <- theta_pv2[condition]
+
+    # Calculate number of subjects in this subgroup
+    n_subjects <- sum(condition)/step  # Adjust for repeated measures
+
+    # Store as matrix (subjects × steps)
+    result_list[[i]] <- matrix(subgroup_theta,
+                               nrow = n_subjects,
+                               ncol = step,
+                               byrow = TRUE)
+
+  }
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in result_list) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+
+
+}
+
+
+draw_PVs_debias<- function (beta_hat, sigma, hatF, hatU, X, a, d, main, step) {
+  # Define quadrature points (30 points from -4 to 4)
+  Q <- 30
+  t_q <- seq(-5, 5, length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, d, t_q) {
+    likelihood <- sapply(t_q, function(t) {
+      P <- 1 / (1 + exp(-a * (t - d)))  # Compute P(X_ij | theta)
+      prod(P^response_vector * (1 - P)^(1 - response_vector))  # Compute likelihood
+    })
+    return(likelihood)
+  }
+
+  # Compute EAP estimates for each examinee
+  EAP_estimates2 <- numeric(n)
+  EAP_variance2 <- numeric(n)
+  for (i in 1:n) {
+
+    # for(index in 1:10){
+    #   # Standard normal prior density f(theta)
+    #   #beta_sample <- mvrnorm(mu = loop[1:nn]/norm_c, Sigma = vcov_t)
+    #   prior_f <- dnorm(t_q, mean = cbind(U, X)%*%c(beta, gamma), sd = 1)
+    #   #prior_f <- dnorm(t_q, mean = mean(theta), sd = 1)
+    #   likelihood1 <- compute_likelihood(resp[i, ], a, -d, t_q)  # Compute likelihood at each t_q
+    #   # Compute EAP as weighted mean of t_q
+    #   EAP_estimates1[(i-1)*10 + index] <- sum(t_q * likelihood1*prior_f )/sum( likelihood1 *prior_f)
+    #   EAP_variance[(i-1)*10 + index] <- sum((t_q-EAP_estimates1[(i-1)*10 + index])^2 * likelihood1*prior_f )/sum( likelihood1 *prior_f)
+    # }
+
+    # prior_f <- dnorm(t_q, mean = c(U[i,], X[i,])%*%(c(beta,gamma)/norm_c), sd = 1/norm_c)
+    # #prior_f <- dnorm(t_q, mean = mean(theta), sd = 1)
+    # likelihood1 <- compute_likelihood(resp[i, ], a, -d, t_q)  # Compute likelihood at each t_q
+    # # Compute EAP as weighted mean of t_q
+    # EAP_estimates1[i] <- sum(t_q * likelihood1*prior_f )/sum( likelihood1 *prior_f)
+    # EAP_variance[i] <- sum((t_q-EAP_estimates1[i])^2 * likelihood1*prior_f )/sum( likelihood1 *prior_f)
+
+    prior_f2 <- dnorm(t_q, mean = c(hatF[i,], hatU[i,])%*% (beta_hat), sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, -(d/a), t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates2[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance2[i]  <- sum((t_q-EAP_estimates2[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+  }
+
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates2)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv2 <- vector(mode = "numeric",length = n*step)
+  for(i in 1:n){
+    for(j in 1:step)
+    {
+      theta_pv2[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates2[i], sqrt(EAP_variance2[i]))
+    }
+  }
+  X.1 <- unlist(lapply(X[,main[1]], function(x) {rep(x,step)}))
+  X.2 <- unlist(lapply(X[,main[2]], function(x) {rep(x,step)}))
+  result11 <- theta_pv2[X.1== 1 & X.2==1]
+  result10 <- theta_pv2[X.1== 1 & X.2==0]
+  result01 <- theta_pv2[X.1== 0 & X.2==1]
+  result00 <- theta_pv2[X.1== 0 & X.2==0]
+  result11_m <- matrix(result11, nrow = sum(X[,main[1]]== 1 & X[,main[2]]==1), ncol = step, byrow = TRUE)
+  result10_m <- matrix(result10, nrow = sum(X[,main[1]]== 1 & X[,main[2]]==0), ncol = step, byrow = TRUE)
+  result01_m <- matrix(result01, nrow = sum(X[,main[1]]== 0 & X[,main[2]]==1), ncol = step, byrow = TRUE)
+  result00_m <- matrix(result00, nrow = sum(X[,main[1]]== 0 & X[,main[2]]==0), ncol = step, byrow = TRUE)
+  result_m <- matrix(theta_pv2, nrow = n, ncol = step, byrow = TRUE)
+  return(list(mean = mean(theta_pv2), mean11 = mean(result11 ), mean10 = mean(result10),
+              mean01 = mean(result01 ), mean00 =  mean(result00)
+              , var = variance.cal(result_m, step = 10),
+              var11 = variance.cal(result11_m, step = 10), var10 = variance.cal(result10_m, step = 10),
+              var01 = variance.cal(result01_m, step = 10), var00 = variance.cal(result00_m, step = 10)))
+}
+
+draw_PVs_TM<- function (beta_hat, sigma, X, all_Xs, a, d, main, step) {
+  # Define quadrature points (30 points from -4 to 4)
+  Q <- 30
+  t_q <- seq(-4 + mean(theta), 4 + mean(theta), length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, d, t_q) {
+    likelihood <- sapply(t_q, function(t) {
+      P <- 1 / (1 + exp(-a * (t - d)))  # Compute P(X_ij | theta)
+      prod(P^response_vector * (1 - P)^(1 - response_vector))  # Compute likelihood
+    })
+    return(likelihood)
+  }
+
+  # Compute EAP estimates for each examinee
+  EAP_estimates2 <- numeric(n)
+  EAP_variance2 <- numeric(n)
+  for (i in 1:n) {
+
+    # for(index in 1:10){
+    #   # Standard normal prior density f(theta)
+    #   #beta_sample <- mvrnorm(mu = loop[1:nn]/norm_c, Sigma = vcov_t)
+    #   prior_f <- dnorm(t_q, mean = cbind(U, X)%*%c(beta, gamma), sd = 1)
+    #   #prior_f <- dnorm(t_q, mean = mean(theta), sd = 1)
+    #   likelihood1 <- compute_likelihood(resp[i, ], a, -d, t_q)  # Compute likelihood at each t_q
+    #   # Compute EAP as weighted mean of t_q
+    #   EAP_estimates1[(i-1)*10 + index] <- sum(t_q * likelihood1*prior_f )/sum( likelihood1 *prior_f)
+    #   EAP_variance[(i-1)*10 + index] <- sum((t_q-EAP_estimates1[(i-1)*10 + index])^2 * likelihood1*prior_f )/sum( likelihood1 *prior_f)
+    # }
+
+    # prior_f <- dnorm(t_q, mean = c(U[i,], X[i,])%*%(c(beta,gamma)/norm_c), sd = 1/norm_c)
+    # #prior_f <- dnorm(t_q, mean = mean(theta), sd = 1)
+    # likelihood1 <- compute_likelihood(resp[i, ], a, -d, t_q)  # Compute likelihood at each t_q
+    # # Compute EAP as weighted mean of t_q
+    # EAP_estimates1[i] <- sum(t_q * likelihood1*prior_f )/sum( likelihood1 *prior_f)
+    # EAP_variance[i] <- sum((t_q-EAP_estimates1[i])^2 * likelihood1*prior_f )/sum( likelihood1 *prior_f)
+
+    prior_f2 <- dnorm(t_q, mean = c(all_Xs[i,])%*% (beta_hat), sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, -(d/a), t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates2[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance2[i]  <- sum((t_q-EAP_estimates2[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+  }
+
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates2)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv2 <- vector(mode = "numeric",length = n*step)
+  for(i in 1:n){
+    for(j in 1:step)
+    {
+      theta_pv2[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates2[i], sqrt(EAP_variance2[i]))
+    }
+  }
+  X.1 <- unlist(lapply(X[,main[1]], function(x) {rep(x,step)}))
+  X.2 <- unlist(lapply(X[,main[2]], function(x) {rep(x,step)}))
+  result11 <- theta_pv2[X.1== 1 & X.2==1]
+  result10 <- theta_pv2[X.1== 1 & X.2==0]
+  result01 <- theta_pv2[X.1== 0 & X.2==1]
+  result00 <- theta_pv2[X.1== 0 & X.2==0]
+  result11_m <- matrix(result11, nrow = sum(X[,main[1]]== 1 & X[,main[2]]==1), ncol = step, byrow = TRUE)
+  result10_m <- matrix(result10, nrow = sum(X[,main[1]]== 1 & X[,main[2]]==0), ncol = step, byrow = TRUE)
+  result01_m <- matrix(result01, nrow = sum(X[,main[1]]== 0 & X[,main[2]]==1), ncol = step, byrow = TRUE)
+  result00_m <- matrix(result00, nrow = sum(X[,main[1]]== 0 & X[,main[2]]==0), ncol = step, byrow = TRUE)
+  result_m <- matrix(theta_pv2, nrow = n, ncol = step, byrow = TRUE)
+  return(list(mean = mean(theta_pv2), mean11 = mean(result11 ), mean10 = mean(result10),
+              mean01 = mean(result01 ), mean00 =  mean(result00)
+              , var = variance.cal(result_m, step = 10),
+              var11 = variance.cal(result11_m, step = 10), var10 = variance.cal(result10_m, step = 10),
+              var01 = variance.cal(result01_m, step = 10), var00 = variance.cal(result00_m, step = 10)))
+}
+
+draw_PVs_GVEM <- function (N, resp, beta_hat, sigma, Z, a, b,c, main, step, theta, X_discrete) {
+  EAP_estimates <- numeric(N)
+  EAP_variance <- numeric(N)
+  Q <- 30
+  t_q <- seq(-4,4, length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, b, c, t_q) {
+    likelihood <- sapply(t_q, function(t) {
+      P <- c + (1-c)*(1 / (1 + exp(-a * (t - b))))  # Compute P(X_ij | theta)
+      prod((P^response_vector) * ((1 - P)^(1 - response_vector)))  # Compute likelihood
+    })
+    return(likelihood)
+  }
+  #theta_pre <- (F %*% (beta) + (E) %*% veta) /norm_c
+  for (i in 1:N) {
+    ################
+
+    prior_f2 <- dnorm(t_q, mean = Z[i,]%*%beta_hat, sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, b,0, t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance[i]  <- sum((t_q-EAP_estimates[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+    ################
+  }
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv <- vector(mode = "numeric",length = n*step)
+  for(i in 1:N){
+    for(j in 1:step)
+    {
+      theta_pv[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates[i], sqrt(EAP_variance[i]))
+    }
+  }
+
+  # X.rep <- vector("list", length(main))
+  # for(i in c(1:length(main))){
+  #   X.rep[[i]] <- unlist(lapply(X[,main[i]], function(x) {rep(x,step)}))
+  # }
+  X.rep <- vector("list", length(main))
+  for(i in c(1:length(main))){
+    X.rep[[i]] <- unlist(lapply(X_discrete[,i], function(x) {rep(x,step)}))
+  }
+  n <- length(main)
+  # First create all possible combinations (32 groups for 5 binary variables)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # main contains your 5 binary variable names
+
+  # Initialize a list to store all 32 result matrices
+  result_list <- vector("list", nrow(combinations))
+
+  for(i in 1:nrow(combinations)) {
+    # Build the logical condition for this combination
+    condition <-
+      X.rep[[1]] == combinations[i,1] &
+      X.rep[[2]] == combinations[i,2] &
+      X.rep[[3]] == combinations[i,3]  &
+      X.rep[[4]] == combinations[i,4] &
+      X.rep[[5]] == combinations[i,5]
+
+    # Get theta values for this subgroup
+    subgroup_theta <- theta_pv[condition]
+
+    # Calculate number of subjects in this subgroup
+    n_subjects <- sum(condition)/step  # Adjust for repeated measures
+
+    # Store as matrix (subjects × steps)
+    result_list[[i]] <- matrix(subgroup_theta,
+                               nrow = n_subjects,
+                               ncol = step,
+                               byrow = TRUE)
+
+  }
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in result_list) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+}
+
+draw_PVs_TRUE_high <- function (N, resp, meanX, sigma, a, b,c, main, step, theta, X_discrete) {
+  EAP_estimates <- numeric(N)
+  EAP_variance <- numeric(N)
+  Q <- 30
+  t_q <- seq(-4,4, length.out = Q)  # Quadrature grid
+
+  # Function to compute likelihood for an examinee
+  compute_likelihood <- function(response_vector, a, b, c, t_q) {
+    likelihood <- sapply(t_q, function(t) {
+      P <- c + (1-c)*(1 / (1 + exp(-a * (t - b))))  # Compute P(X_ij | theta)
+      prod((P^response_vector) * ((1 - P)^(1 - response_vector)))  # Compute likelihood
+    })
+    return(likelihood)
+  }
+  #theta_pre <- (F %*% (beta) + (E) %*% veta) /norm_c
+  for (i in 1:N) {
+    ################
+
+    prior_f2 <- dnorm(t_q, mean = meanX[i], sd = sigma)
+    likelihood2 <- compute_likelihood(resp[i, ], a, b,0, t_q)  # Compute likelihood at each t_q
+    # Compute EAP as weighted mean of t_q
+    EAP_estimates[i]  <- sum(t_q * likelihood2 * prior_f2)/sum( likelihood2*prior_f2 )
+    EAP_variance[i]  <- sum((t_q-EAP_estimates[i])^2 * likelihood2*prior_f2 )/sum( likelihood2 *prior_f2)
+    ################
+  }
+  # 计算真实 theta 的均值
+  true_mean <- mean(theta)
+  # 计算 EAP 估计的均值
+  eap_mean2 <- mean(EAP_estimates)
+  print(paste("Difference using estimate:", round(eap_mean2 - true_mean, 3)))
+  theta_pv <- vector(mode = "numeric",length = n*step)
+  for(i in 1:N){
+    for(j in 1:step)
+    {
+      theta_pv[(i-1)*step + j] <- rnorm(n = 1, EAP_estimates[i], sqrt(EAP_variance[i]))
+    }
+  }
+
+  # X.rep <- vector("list", length(main))
+  # for(i in c(1:length(main))){
+  #   X.rep[[i]] <- unlist(lapply(X[,main[i]], function(x) {rep(x,step)}))
+  # }
+  X.rep <- vector("list", length(main))
+  for(i in c(1:length(main))){
+    X.rep[[i]] <- unlist(lapply(X_discrete[,i], function(x) {rep(x,step)}))
+  }
+  n <- length(main)
+  # First create all possible combinations (32 groups for 5 binary variables)
+  combinations <- expand.grid(replicate(n, 0:1, simplify = FALSE))
+  colnames(combinations) <- main[1:n]  # main contains your 5 binary variable names
+
+  # Initialize a list to store all 32 result matrices
+  result_list <- vector("list", nrow(combinations))
+
+  for(i in 1:nrow(combinations)) {
+    # Build the logical condition for this combination
+    condition <-
+      X.rep[[1]] == combinations[i,1] &
+      X.rep[[2]] == combinations[i,2] &
+      X.rep[[3]] == combinations[i,3]  &
+      X.rep[[4]] == combinations[i,4] &
+      X.rep[[5]] == combinations[i,5]
+
+    # Get theta values for this subgroup
+    subgroup_theta <- theta_pv[condition]
+
+    # Calculate number of subjects in this subgroup
+    n_subjects <- sum(condition)/step  # Adjust for repeated measures
+
+    # Store as matrix (subjects × steps)
+    result_list[[i]] <- matrix(subgroup_theta,
+                               nrow = n_subjects,
+                               ncol = step,
+                               byrow = TRUE)
+
+  }
+
+  mean_vector <- c()
+  mean_v_vector <- c()
+  var_vector <- c()
+  for (result in result_list) {
+    mean_vector <- c(mean_vector, mean(colMeans(result)))
+    var_vector <- c(var_vector, variance.sample(result))
+    mean_v_vector <- c(mean_v_vector, variance.cal(result))
+  }
+  return(list(mean = mean_vector, var = var_vector, mean_v = mean_v_vector ))
+}
+#draw_PVs_TRUE_high(N,resp[,1:15], meanX[,1],sd[1], a[1:15,1], b[1:15],0, bin, 10, theta[,1], X_discrete)

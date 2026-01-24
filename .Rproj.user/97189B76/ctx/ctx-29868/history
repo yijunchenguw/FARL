@@ -1,0 +1,512 @@
+lines(r*cos(th_seq), r*sin(th_seq), col = col_line, lwd = lwd)
+# point
+if (show_pts)
+points(r*cos(th), r*sin(th), pch = 21, bg = "white", col = col_line, cex = 1.2)
+}
+draw_wedge <- function(idx, col_line = "#2ca02c", lwd = 2, show_pts = FALSE) {
+for (i in idx) {
+draw_single_wedge(i, col_line = col_line, lwd = lwd, show_pts = show_pts)
+}
+}
+col_alpha <- "#2ca02c"
+col_beta  <- "#D95F02"
+op <- par(mar = c(1, 2, 3, 2))
+radarchart(
+dat_base,
+axistype = 0,               # no polygon grid
+pcol = NA, pfcol = NA, plwd = 1,
+cglcol = NA,                # remove background hex grid
+caxislabels = NA,           # remove default labels
+vlabels = facet_AB, vlcex = 1,
+centerzero = TRUE
+)
+r_seq <- seq(0, 1, by = 0.2)
+for (r in r_seq) {
+symbols(0, 0, circles = r, inches = FALSE, add = TRUE,
+fg = "grey80", lwd = 1)
+}
+# ----- Add radial lines (segment separators) -----
+offset <- 20 * pi / 180
+for (i in 1:k) {
+segments(0, 0, cos(theta[i]+offset), sin(theta[i]+offset), col = "grey80")
+}
+draw_wedge(1L:nalpha,                   col_line = col_alpha)
+draw_wedge((nalpha+1L):(nalpha+nbeta),  col_line = col_beta)
+title(main = "Web Profile")
+legend("topright",
+legend = c("Alpha", "Beta"),
+fill   = c(alpha(col_alpha, 0.35), alpha(col_beta, 0.35)),
+border = NA, bty = "n")
+par(op)
+install.packages("cowplot")
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(cowplot)
+library(stringr)
+library(readr)
+library(scales)
+library(fmsb)
+# ---------- Palettes ----------
+pal_disc  <- c("Alphas present"="#2ca02c", "Betas present"="#D95F02", "Not present"="grey90")
+pal_group <- c(Alpha = "#2ca02c", Beta = "#D95F02")
+pct_lab   <- function(x) scales::percent(x, accuracy = 1)
+# ---------- Read EAP & MAP (first student only) ----------
+facet_names <- c(paste0("A", 1:nalpha), paste0("B", nalpha+1:nbeta))
+n_facets <- length(facet_names)
+#eap_raw <- read_csv("Cluster7_afterpanel_EAP.csv", col_names = FALSE, show_col_types = FALSE)
+if (ncol(eap_raw) > n_facets) eap_raw <- eap_raw[, -1]
+stopifnot(ncol(eap_raw) == n_facets)
+colnames(eap_raw) <- facet_names
+#map_raw <- read_csv("Cluster7_afterpanel_MAP.csv", col_names = FALSE, show_col_types = FALSE)
+if (ncol(map_raw) > n_facets) map_raw <- map_raw[, -1]
+stopifnot(ncol(map_raw) == n_facets)
+colnames(map_raw) <- facet_names
+# ---------- Tidy ----------
+df_eap1 <- eap_first %>%
+mutate(Student = student_label) %>%
+pivot_longer(-Student, names_to = "Facet_name", values_to = "EAP") %>%
+mutate(
+Group      = if_else(str_detect(Facet_name, "^A"), "Alpha", "Beta"),
+Facet_name = factor(Facet_name, levels = facet_names)
+)
+df_map1 <- map_first %>%
+mutate(Student = student_label) %>%
+pivot_longer(-Student, names_to = "Facet_name", values_to = "Status") %>%
+mutate(
+Group      = if_else(str_detect(Facet_name, "^A"), "Alpha", "Beta"),
+fill_key   = case_when(
+Status == 0 ~ "Not present",
+Group == "Alpha" ~ "Alphas present",
+TRUE ~ "Betas present"
+),
+Facet_name = factor(Facet_name, levels = facet_names),
+fill_key   = factor(fill_key, levels = names(pal_disc))
+)
+# ---------- Legend for MAP statuses ----------
+legend_plot <- ggplot(
+data.frame(fill = factor(names(pal_disc), levels = names(pal_disc))),
+aes(x = fill, y = 1, fill = fill)
+) +
+geom_col() +
+scale_fill_manual(values = pal_disc,
+breaks = c("Alphas present", "Betas present"),
+name = NULL) +
+guides(fill = guide_legend(nrow = 1)) +
+theme_void() +
+theme(legend.position = "top")
+leg <- cowplot::get_legend(legend_plot)
+# ---------- Separate plots ----------
+# EAP plot (WITH y-axis)
+p_eap <- ggplot(df_eap1, aes(Facet_name, EAP, fill = Group)) +
+geom_col(width = 0.8, colour = "white") +
+scale_fill_manual(values = pal_group, name = "Facet group") +
+scale_y_continuous(
+limits = c(0, 1.05),
+breaks = c(0, .25, .5, .75, 1.0),
+labels = pct_lab,
+expand = expansion(mult = c(0, 0.02))
+) +
+labs(title = NULL, x = NULL, y = "Degree of confidence (%)") +
+theme_minimal(base_size = 12) +
+theme(
+panel.grid.minor = element_blank(),
+panel.grid.major.x = element_blank(),
+axis.text.x  = element_blank(),      # hide x labels here; show them on MAP
+axis.title.x = element_blank(),
+axis.text.y  = element_text(color = "grey20"),
+legend.position = "none",
+plot.title = element_text(face = "bold", hjust = 0.5),
+plot.margin = margin(5, 5, 2, 5)
+)
+# MAP plot (NO y-axis, x labels shown)
+p_map <- ggplot(df_map1, aes(Facet_name, 1, fill = fill_key)) +
+geom_col(width = 0.8, colour = "white") +
+scale_fill_manual(values = pal_disc,
+breaks = c("Alphas present", "Betas present"),   # hide "Not present" in legend
+name   = NULL,
+drop   = FALSE) +
+coord_cartesian(ylim = c(0, 1)) +
+labs(title = " ", x = NULL, y = NULL) +
+theme_minimal(base_size = 12) +
+theme(
+panel.grid = element_blank(),
+axis.text.y  = element_blank(),
+axis.ticks.y = element_blank(),
+axis.text.x  = element_text(angle = 45, hjust = 1),
+legend.position = "none",
+plot.title = element_text(face = "bold", hjust = 0.5),
+plot.margin = margin(2, 5, 5, 5)
+)
+# ---------- Align vertically so bars line up ----------
+aligned <- cowplot::align_plots(p_eap, p_map, align = "v", axis = "lr")
+panel <- cowplot::plot_grid(aligned[[1]], aligned[[2]], ncol = 1, rel_heights = c(1, 0.45))
+# ---------- Assemble ----------
+title_grob <- cowplot::ggdraw() + cowplot::draw_label(paste0(student_label," Understanding by Facet"),
+fontface = "bold", size = 16, hjust = 0.5)
+final_one <- cowplot::plot_grid(title_grob, leg, panel, ncol = 1, rel_heights = c(0.10, 0.12, 1))
+final_one
+rm(list=ls())
+gc()
+options(scipen=999) ## forces full display of results, all digits
+library(readxl)
+library(GDINA)
+library(rmarkdown)
+source("render_all_func.R")
+Q = as.matrix(read_excel("Simulation_true.xlsx"))
+# each item j has lambda_{j,1,1}, lambda_{j,1,2}, lambda{j,1,3}, and
+# beta_{j,2,1}, beta_{j,2,2}, beta_{j,2,3}, beta_{j,2,4}, beta_{j,2,5}
+lambda0=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet1",col_names = FALSE,
+.name_repair = "unique_quiet"))[,1]
+lambda1=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet2",col_names = FALSE,
+.name_repair = "unique_quiet"))
+lambda2=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet3",col_names = FALSE,
+.name_repair = "unique_quiet"))
+resp <- as.matrix(read.csv('DFSM_EM_Observed_Responses_27_250_1.csv', header = TRUE)[, -1])
+maxCat <- 4
+nalpha <- 4 # Number of goal facets
+nbeta <- 5 # Number of intermediate facets
+# prior over profiles (estimated mixing proportion)
+mixing_prop <- unlist(read.csv('trueprior_27_250_1.csv')[,1])
+first_n <- 30
+# set the path to where "example_dag_matrix.xlsx" and "example_profile.xlsx" store
+read_file_path <- '~/Documents/UW Education/Chun Research/Peihong Pipeline/batch_pipeline3_real_data_backup/'
+renderAll(Q, lambda0, lambda1, lambda2, resp, maxCat,
+nalpha, nbeta, mixing_prop, first_n,
+read_file_path)
+setwd("~/Documents/UW Education/Chun Research/Peihong Pipeline/batch_pipeline3_real_data_backup copy")
+rm(list=ls())
+gc()
+options(scipen=999) ## forces full display of results, all digits
+library(readxl)
+library(GDINA)
+library(rmarkdown)
+source("render_all_func.R")
+Q = as.matrix(read_excel("Simulation_true.xlsx"))
+# each item j has lambda_{j,1,1}, lambda_{j,1,2}, lambda{j,1,3}, and
+# beta_{j,2,1}, beta_{j,2,2}, beta_{j,2,3}, beta_{j,2,4}, beta_{j,2,5}
+lambda0=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet1",col_names = FALSE,
+.name_repair = "unique_quiet"))[,1]
+lambda1=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet2",col_names = FALSE,
+.name_repair = "unique_quiet"))
+lambda2=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet3",col_names = FALSE,
+.name_repair = "unique_quiet"))
+resp <- as.matrix(read.csv('DFSM_EM_Observed_Responses_27_250_1.csv', header = TRUE)[, -1])
+maxCat <- 4
+nalpha <- 4 # Number of goal facets
+nbeta <- 5 # Number of intermediate facets
+# prior over profiles (estimated mixing proportion)
+mixing_prop <- unlist(read.csv('trueprior_27_250_1.csv')[,1])
+first_n <- 30
+# set the path to where "example_dag_matrix.xlsx" and "example_profile.xlsx" store
+read_file_path <- '~/Documents/UW Education/Chun Research/Peihong Pipeline/batch_pipeline3_real_data_backup/'
+renderAll(Q, lambda0, lambda1, lambda2, resp, maxCat,
+nalpha, nbeta, mixing_prop, first_n,
+read_file_path)
+setwd("~/Documents/UW Education/Chun Research/Peihong Pipeline/batch_pipeline3_real_data_Yijun1:14:26 2")
+rm(list=ls())
+gc()
+options(scipen=999) ## forces full display of results, all digits
+library(readxl)
+library(GDINA)
+library(rmarkdown)
+source("render_all_func.R")
+Q = as.matrix(read_excel("Simulation_true.xlsx"))
+# each item j has lambda_{j,1,1}, lambda_{j,1,2}, lambda{j,1,3}, and
+# beta_{j,2,1}, beta_{j,2,2}, beta_{j,2,3}, beta_{j,2,4}, beta_{j,2,5}
+lambda0=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet1",col_names = FALSE,
+.name_repair = "unique_quiet"))[,1]
+lambda1=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet2",col_names = FALSE,
+.name_repair = "unique_quiet"))
+lambda2=as.matrix(read_excel(paste0("trueitemparameters.xls"),
+sheet = "Sheet3",col_names = FALSE,
+.name_repair = "unique_quiet"))
+resp <- as.matrix(read.csv('DFSM_EM_Observed_Responses_27_250_1.csv', header = TRUE)[, -1])
+maxCat <- 4
+nalpha <- 4 # Number of goal facets
+nbeta <- 5 # Number of intermediate facets
+# prior over profiles (estimated mixing proportion)
+mixing_prop <- unlist(read.csv('trueprior_27_250_1.csv')[,1])
+first_n <- 30
+# set the path to where "example_dag_matrix.xlsx" and "example_profile.xlsx" store
+read_file_path <- '~/Documents/UW Education/Chun Research/Peihong Pipeline/batch_pipeline3_real_data_backup/'
+renderAll(Q, lambda0, lambda1, lambda2, resp, maxCat,
+nalpha, nbeta, mixing_prop, first_n,
+read_file_path)
+farlr_debias <- function(n,resp, parTab, K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 5, window.size = 50, theta_est_irt.mean, theta_est_irt.se,resp_rep = NA, Z.em = NA, Uupdate,hatU, Fan, main, verbose = TRUE)
+{
+# method debias
+results <- list()
+a <- parTab$slope
+d <- -parTab$slope * parTab$difficulty
+c <- parTab$guessing
+output <- if (verbose) stderr() else nullfile()
+cat(file = output, 'Fitting the latent regression model...\n')
+if (verbose) pb <- txtProgressBar(file = output, 0, length(lambda_all), style = 3)
+Uupdate.em <- rep(1, n_sam) %x% Uupdate
+Uupdate.em.torch <- torch_tensor(Uupdate.em)
+resp_rep <- rep(1, n_sam) %x% resp
+hatU.em <- rep(1, n_sam) %x% hatU
+hatU.em.torch <- torch_tensor(hatU.em)
+Fan.em <- rep(1, n_sam) %x% Fan
+temp <- Uupdate.em.torch$matmul(Uupdate.em.torch$t())              # [p, 1]
+P <- (1 / (n * n_sam)) * temp
+#P <- 1/(n*n_sam)*torch_matmul(Uupdate.em.torch,Uupdate.em.torch$t())
+Z.em <- rep(1, n_sam) %x% Fan
+for (ll in 1:length(lambda_all)) {
+# initial value
+if (verbose) setTxtProgressBar(pb, ll)
+beta_gamma_old <- rep(0,K_hat+p)
+sigma_old <- 1
+beta_gamma_t <- list()
+sigma_t <- list()
+window_size = window.size
+delta <- 1
+iter <- 1
+theta_t <- 1
+cov_t <- c()
+cv.fit.em <- list()
+cv.fit.em.debias <- list()
+lambda <- lambda_all[ll]
+while ((delta > delta.criteria) && (iter < iter.max)) {
+# E-step : sample the theta
+theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+theta_sample.torch <- torch_tensor(theta_sample)
+q_num_sample <- q_num_NA(a,d, c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+den_all <- q_num_sample/h_sample
+den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+w_ik <- (1/den_i)*q_num_sample/h_sample
+w_ik.torch <- torch_tensor(w_ik)
+theta_1 <-theta_sample.torch-torch_matmul(P,theta_sample.torch)
+factors <- rep(1,p)
+factors[main] <- 0
+cv.fit.em[[iter]] <- glmnet(hatU.em, as.matrix(theta_1),
+weights = w_ik, penalty.factor=factors,intercept = FALSE, lambda = lambda)
+coef_hat_em <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+coef_hat_em.torch <- torch_tensor(coef_hat_em)
+weights <- torch_diag(w_ik.torch)
+C<-torch_diag(rep(1,p))
+# T<-c()
+# for( j in 1:ncol(hatU.em)){
+#
+#   C[j,-j]<-0
+#   T<-c(T,1/(n*n_sam)*sum(w_ik*(hatU.em[,j])^2))
+#   # if (j%%100==0){
+#   #   print(j)
+#   # }
+# }
+# Ensure w_ik is [n, 1] for broadcasting
+w_ik_exp <- w_ik.torch$unsqueeze(2)  # [n, 1]
+# Weighted square of hatU_em: [n, p]
+weighted_sq <- w_ik_exp * hatU.em.torch$pow(2)
+# Sum across rows (i.e., for each column j): result [p]
+col_sums <- weighted_sq$sum(dim = 1)
+# Compute T vector
+T <- (1 / (n * n_sam)) * col_sums
+# Create diagonal matrix C: [p, p]
+T1<-torch_diag(1/T)
+Theta1<-torch_matmul(T1,C)
+temp <- (1/(n*n_sam))* torch_matmul(Theta1,hatU.em.torch$t())
+residuals <- theta_1 - torch_matmul(hatU.em.torch, coef_hat_em.torch)
+coef_hat_debias <- coef_hat_em + torch_matmul(torch_matmul(temp, weights), residuals)
+coef_hat_debias <- as.array(coef_hat_debias)
+#debias ----
+Ut <- Uupdate.em.torch$transpose(1, 2)
+# Full left-hand matrix: (Uᵗ W U)
+lhs <- Ut$matmul(weights)$matmul(Uupdate.em.torch)
+# Right-hand side: Uᵗ W θ
+rhs <- Ut$matmul(weights)$matmul(theta_sample)
+# Solve the system (lhs)^(-1) * rhs
+phi_hat <- torch_inverse(lhs)$matmul(rhs)
+#phi_hat <-(solve(t(Uupdate.em)%*%Uupdate.em))%*%t(Uupdate.em) %*% theta_sample
+phi_hat <- as.array(phi_hat)
+coef_hat_em_debias <- ifelse(coef_hat_em !=0, (coef_hat_debias), 0)
+coef_hat_em_debias <- append(coef_hat_em_debias, (phi_hat), after = 0)
+#add into sliding window
+beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
+#calculate mean
+matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+beta_gamma_means <- rowMeans(matrix_beta_gamma)
+fitted_values.em <- matrix(beta_gamma_means, nrow = 1)%*%t(Z.em)
+residuals_2 <- theta_sample - fitted_values.em
+WSSR <- sum(w_ik*(residuals_2^2))#
+sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
+matrix_sigma <- do.call(cbind, sigma_t)
+sigma_means <- sigma_temp #rowMeans(matrix_sigma)
+#joint response ???hg
+bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - Z.em%*%beta_gamma_means)^2)) + sum(beta_gamma_means!=0)*log(n)
+#calculate delta
+delta_s <- abs(sigma_old-sigma_means)
+delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
+delta <- max(delta_s, delta_b)
+sigma_old <- sigma_means
+beta_gamma_old <- beta_gamma_means
+iter <- iter + 1
+print(delta)
+}
+print(ll)
+print(iter)
+results[[ll]] <- list(beta_gamma_old,sigma_old,bic)
+}
+minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
+beta_hat <- results[[minBIC]][[1]]; sigma <- results[[minBIC]][[2]]
+n_sam <- 100
+Uupdate.em <- rep(1, n_sam) %x% Uupdate
+resp_rep <- rep(1, n_sam) %x% resp
+hatU.em <- rep(1, n_sam) %x% hatU
+Z.em <- rep(1, n_sam) %x% Fan
+theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+q_num_sample <- q_num_NA(a,d,c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+den_all <- q_num_sample/h_sample
+den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+w_ik <- (1/den_i)*q_num_sample/h_sample
+fitted_values.em <- matrix(beta_hat, nrow = 1)%*%t(Z.em)
+residuals_2 <- theta_sample - fitted_values.em
+WSSR <- sum(w_ik*(residuals_2^2))#
+sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
+return(list(coef <- beta_hat, sigma <- sigma_temp,  minBIC))
+return(list(
+coefficients  = beta_hat,
+sigma = sigma_temp,
+LogLik = results[[minBIC]][[3]],
+minBIC = minBIC,
+Convergence = ifelse(iter<iter.max,"Converged","Did not converge")
+))
+}
+FARL::mml_test()
+library(paran)
+library(lavaan)
+library(mirt)
+library(glmnet)
+library(torch)
+#' Fit a Latent Regression Model via the EM Algorithm
+#'
+#' Fits a latent regression model using an expectation--maximization (EM)
+#' algorithm, where latent abilities are linked to observed covariates and
+#' item response data through an IRT measurement model.
+#'
+#' @param X Numeric matrix. Design matrix of covariates (\eqn{N \times p}).
+#' @param Y Matrix. Item response matrix (\eqn{N \times J}).
+#' @param a Numeric vector or matrix. Item discrimination parameters.
+#' @param d Numeric vector or matrix. Item difficulty (intercept) parameters.
+#' @param p Integer. Number of covariates included in the latent regression.
+#' @param n_sam Integer. Number of Monte Carlo or quadrature samples used to
+#'   approximate posterior expectations in the E-step. Default is \code{30}.
+#' @param verbose Logical. If \code{TRUE}, prints progress information during
+#'   estimation. Default is \code{TRUE}.
+#'
+#' @return A list containing:
+#' \itemize{
+#'   \item \code{coef}: Estimated coefficients from the latent regression model.
+#'   \item \code{Sigma}: Estimated covariance matrix of the latent variables.
+#'   \item \code{theta}: Posterior mean estimates of latent abilities.
+#'   \item \code{converged}: Logical indicator of whether the EM algorithm
+#'     converged.
+#'   \item \code{iter}: Number of EM iterations performed.
+#' }
+#'
+#' @details
+#' The EM algorithm alternates between computing the conditional expectations
+#' of latent abilities given the observed responses and current parameter
+#' estimates (E-step) and maximizing the expected complete-data log-likelihood
+#' with respect to the model parameters (M-step). Numerical optimization is
+#' employed for item parameters, while closed-form updates are available for
+#' latent regression and covariance parameters.
+#'
+#' @export
+mml <- function(X, Y, parTab, n_sam = 10, method = "FARLR_EMM", lambda = seq(0.1, 0.5, by = 0.1), verbose = TRUE) {
+PA <- paran(X, iterations = 500, centile = 0, quiet = TRUE)
+K_hat <- PA$Retained
+fa <- factor.analysis(X, K_hat, method = "ml")
+Wupdate.t <- fa$Gamma
+Sgm_inv <- solve(diag(fa$Sigma))
+p = ncol(X)
+orthg <- t(Wupdate.t) %*% Sgm_inv %*% Wupdate.t/p
+V <- eigen(orthg)$vectors
+Wupdate <- t(Wupdate.t %*% V)
+Uupdate <- t(solve(Wupdate %*% Sgm_inv %*% t(Wupdate)) %*% Wupdate %*% Sgm_inv %*% t(X))
+Z <- cbind(Uupdate,X)
+colnames(Y) <- paste0("item", c(1:ncol(Y)), sep = "")
+storage.mode(Y) <- "integer"
+est_mirt <- suppressMessages(
+suppressWarnings(
+mirt(Y, 1, verbose = FALSE)
+)
+)
+theta_est_irt <- fscores(est_mirt,full.scores.SE = TRUE)
+theta_est_irt.mean <- theta_est_irt[,1]
+theta_est_irt.se <- theta_est_irt[,2]
+bin <- c(1, 2, 29, 15, 45)
+itemNames <- if (is.null(colnames(Y))) {
+paste0("i", sprintf("%03d", seq_len(ncol(Y))))
+} else {
+colnames(Y)
+}
+colnames(Y) <- itemNames
+subject <- factor(c(1:nrow(X)))
+stuItems <- reshape(data=data.frame(cbind(Y,subject)), varying=itemNames, idvar="subject",
+direction="long", v.names="score",
+times=itemNames, timevar="key")
+Y_back <- reshape(
+stuItems,
+idvar = "subject",
+timevar = "key",
+direction = "wide"
+)
+rownames(Y_back) <- subject
+Y_back <- Y_back[,-1]
+if (method == "FARLR_Debias") {
+hatB <- t( (1/n) * t(Uupdate) %*% X )
+hatU <- X - Uupdate %*% t(hatB)
+Fan  <- cbind(Uupdate, hatU)
+Z.em <- NA
+resp_rep <- NA
+fn <- farlr_debias
+} else if (method == "FARLR_EMM") {
+hatB <- NA
+hatU <- NA
+Fan  <- NA
+resp_rep <- rep(1, n_sam) %x% Y
+Z.em <- rep(1, n_sam) %x% Z
+fn <- farlr_emm
+} else {
+stop("Unknown method: ", method)
+}
+resultII <-fn(nrow(Y_back), resp, parTab, K_hat, ncol(X), lambda_all = lambda, delta.criteria = 1e-3,iter.max = 200, n_sam = n_sam, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, Uupdate,hatU, Fan,bin, verbose = TRUE)
+#resultII <- fn(nrow(Y), Y_back, parTab, K_hat, ncol(X), lambda, delta.criteria = 1e-3,iter.max = 200, n_sam = 30, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, bin, verbose = TRUE)
+resultII$stuDat <- cbind(subject,Z)
+resultII$stuItems <- stuItems
+invisible(resultII)
+# hatB<-t(1/n*t(Uupdate)%*%X) #Estimated Factor Loading
+# hatU<-X-Uupdate%*%t(hatB)
+# Fan <- cbind(Uupdate,hatU)
+# resultDebias <- farlr_debias(nrow(Y_back), resp, parTab, K_hat, ncol(X), lambda, delta.criteria = 1e-3,iter.max = 200, n_sam = 10, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, Uupdate,hatU, Fan,bin, verbose = TRUE)
+# resultII$stuDat <- cbind(subject,Z)
+# resultII$stuItems <- stuItems
+# invisible(resultII)
+}
+mml_test <- function(){
+mmlcomp <- mml(sim_a1$X, sim_a1$Y, sim_a1$parTab,  method = "FARLR_Debias")
+colnames(sim_a1$X) <- paste0("X", c(1:ncol(sim_a1$X)))
+mmlcomp$X <- sim_a1$X
+mmlcomp$item_params <- sim_a1$parTab
+invisible(mmlcomp)
+PVs <- drawPVs(mmlcomp, 10L)
+return(PVs)
+}
+mmlcomp <- mml(sim_a1$X, sim_a1$Y, sim_a1$parTab,  method = "FARLR_Debias")
+FARL::mml_test()
+FARL::mml_test()
+warnings()
+resultII <-fn(n, resp, parTab, K_hat, ncol(X), lambda_all = lambda, delta.criteria = 1e-3,iter.max = 200, n_sam = n_sam, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, Uupdate,hatU, Fan,bin, verbose = TRUE)
+FARL::mml_test()

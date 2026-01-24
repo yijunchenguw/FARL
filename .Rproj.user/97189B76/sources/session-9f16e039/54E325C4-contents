@@ -1,0 +1,288 @@
+#library(lsasim)
+library(dplyr)
+library(glmnet)
+library(mirt)
+library(lavaan)
+#library(cate)
+library(psych)
+library(MASS)
+library(purrr)
+library(paran)
+library(miselect)
+library(glmnet)
+library(mirt)
+library(lavaan)
+#library(cate)
+library(psych)
+library(MASS)
+library(purrr)
+library(paran)
+library(miselect)
+library(caret)
+
+#source("cate_src.R") # uncomment and use open source file if library "cate" installation failed
+source("Source_functions_Ouyang.R")
+source("PCA_extraction.R")
+coverage = 0
+# for (i in c(1:500)) {
+# set.seed(i)
+# # 0.8719
+# n = 200;p = 500;rho = 1
+# K = 2; sigma_e = 1;
+# s=1; sigma_e=1;
+# J <- 10
+#
+# F <- matrix(rnorm(n*K, 0, 1), nrow = n, ncol = K)
+#
+# ## loadings of Xs in the factor model
+# subp <- p/2
+# i3_p1 <- matrix(data=c(runif(subp, 0.5, 1),rep(0,subp)),
+#                 nrow=subp, ncol=K, byrow=F)
+# i3_p2 <- matrix(data=c(rep(0,subp), runif(subp, 1,1.5)),
+#                 nrow=subp, ncol=K, byrow=F)
+# W <- cbind(t(i3_p1),t(i3_p2))
+#
+# ## Generate X = W^T U + E, E ~ N( 0, rho * I_p)
+# sigma_E <- diag(rho,p)
+# E <- mvrnorm(n, rep(0,p), sigma_E)
+# X <- F %*% W + E
+#
+# gamma <- rep(-2,K)
+# beta <- rep(1, s)
+# beta2 <- rep(-1, s)
+#
+# M1 <- rnorm(n, 0, 1)
+# M1 <- ifelse(M1 < mean(M1), 0, 1)
+# e <- rnorm(n, 0, sigma_e)
+#
+# M2 <- rnorm(n, 0, 1)
+# M2 <- ifelse(M2 < mean(M2), 0, 1)
+# e2 <- rnorm(n, 0, sigma_e)
+# Y <- F %*% gamma + matrix(M1, ncol = s) %*% beta + matrix(M2, ncol = s) %*% beta2 + e
+#
+# norm_c <- sd(Y)
+# theta <- Y/norm_c
+# mean(theta)
+# X <- cbind(cbind(M1, M2),X)
+#
+# a <- runif(J,1,2)
+# d <- rnorm(J,0,1)
+#
+# resp <- mirt::simdata(a=a,d=d,itemtype = "dich",Theta = theta)
+set.seed(234)
+colnames(X) <- paste("X", c(1:ncol(X)), sep = "")
+stuDat <- X
+subject <- factor(c(1:n))
+
+stuDat <- data.frame(cbind(subject, X))
+
+main_vars <- c("X1", "X32")
+hatf_tra <- PCA_extraction(main_vars, X)
+stuDat <- cbind(stuDat,hatf_tra)
+colnames(stuDat) <-c("subject",paste("X", c(1:(p)), sep = ""), paste("pc", c(1:ncol(hatf_tra)), sep = ""))
+
+# 生成题目参数
+item_params <- data.frame(cbind(
+  item = c(1:J),  # 难度参数范围
+  b = d,  # 区分度参数范围
+  a = a,  # 猜测参数范围
+  c = 0
+))
+
+# 生成列名，格式为 i001, i002, ..., i030
+colnames(resp) <- paste0("i", sprintf("%03d", 1:J))
+resp0 <- data.frame(cbind(resp, subject))
+
+
+itemNames <- paste0("i", sprintf("%03d", 1:J))
+stuItems <- reshape(data=resp0, varying=itemNames, idvar="subject",
+                    direction="long", v.names="score",
+                    times=itemNames, timevar="key")
+
+# stuItems <- reshape(data=cog_dat, varying=itemNames, idvar="subject",
+#                     direction="long", v.names="score",
+#                     times=itemNames, timevar="key")
+new_itemNames <- (paste0("item",1:J))
+stuItems$key <- rep(new_itemNames,each=n)
+
+# 定义测试信息
+testDat <- data.frame(
+  test = "comp",  # 测试名称
+  subtest = "main",  # 子测试名称
+  location = 250,  # 平均分
+  scale = 50  # 标准差
+)
+
+
+parTab <- item_params %>%
+  mutate(ItemID = new_itemNames,
+         test = "comp",
+         subtest = rep("main",each=J),
+         slope = a,
+         difficulty = -b/a,
+         guessing = c,
+         D = 1)
+
+parTab <- parTab[c("ItemID","test","subtest","slope","difficulty","guessing","D")]
+
+re <- paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + ")
+# Create the formula string
+formula_string <- paste("comp ~ 0 + X1  + X32 + ", paste("pc", 1:ncol(hatf_tra), sep = "", collapse = " + "))
+
+# Convert the string to a formula object
+formula <- as.formula(formula_string)
+
+# Use Dire::mml with the formula object
+mmlcomp <- Dire::mml(
+  formula,
+  stuItems = stuItems,
+  stuDat = stuDat,
+  idVar = "subject",
+  dichotParamTab = parTab,
+  testScale = testDat,
+  calcCor = TRUE
+)
+
+#mmlsummary <- summary(mmlcomp)
+
+library(EdSurvey)
+# generate plausible values
+datPVs <- drawPVs(mmlcomp, npv = 10L)$data
+colnames(datPVs)
+
+# 获取 result_1 中对应的行
+id11 <- stuDat$subject[X[,1] == 1 & X[,32] == 1]
+result_11 <- (datPVs[as.numeric(datPVs$id) %in% id11,-1])# %>% select(paste0("_dire", c(1:10)))
+mean(colMeans(result_11))
+mean(theta[X[,1] == 1 & X[,32]  == 1])
+
+id10 <- stuDat$subject[X[,1] == 1 & X[,32]  == 0 ]
+result_10 <-  (datPVs[as.numeric(datPVs$id) %in% id10,-1])# %>% select(paste0("_dire", c(1:10)))
+mean(colMeans(result_10))
+mean(theta[X[,1] ==  1 & X[,32]  == 0])
+
+id01 <- stuDat$subject[X[,1] == 0 & X[,32]  == 1 ]
+result_01 <- (datPVs[as.numeric(datPVs$id) %in% id01,-1])# %>% select(paste0("_dire", c(1:10)))
+mean(colMeans(result_01))
+mean(theta[X[,1] == 0 & X[,32]  == 1])
+
+id00 <- stuDat$subject[X[,1] == 0 & X[,32]  == 0 ]
+result_00 <-  (datPVs[as.numeric(datPVs$id) %in% id00,-1])# %>% select(paste0("_dire", c(1:10)))
+mean(colMeans(result_00))
+mean(theta[X[,1] ==  0 & X[,32]  == 0])
+
+result <-  (datPVs[,-1]) #%>% select(paste0("_dire", c(1:10)))
+mean(colMeans(result))
+mean(theta)
+
+theta_pv1_matrix <- result_11
+step = 10
+
+W <- 0  # Within-imputation variance
+B <- 0  # Between-imputation variance
+M <- step  # Plausible values 的数量
+
+theta_means <- colMeans(theta_pv1_matrix)
+
+grand_mean <- sum(theta_means)/step
+#  Between-Imputation Variance (B)
+B <- sum((theta_means-grand_mean)^2)/(M-1)
+
+#  Within-Imputation Variance (W)
+W <- mean(apply(theta_pv1_matrix, 2, var))
+
+# total V
+V1 <- W + (1 + 1/M) * B
+V1
+var(theta[X[,1] == 1 & X[,32] == 1])
+
+#  theta_pv1
+theta_pv1_matrix <- result_10
+
+W <- 0  # Within-imputation variance
+B <- 0  # Between-imputation variance
+M <- step  # Plausible values 的数量
+
+theta_means <- colMeans(theta_pv1_matrix)
+
+grand_mean <- sum(theta_means)/step
+#  Between-Imputation Variance (B)
+B <- sum((theta_means-grand_mean)^2)/(M-1)
+
+#  Within-Imputation Variance (W)
+W <- mean(apply(theta_pv1_matrix, 2, var))
+
+# total V
+V0 <- W + (1 + 1/M) * B
+V0
+var(theta[X[,1] == 1 & X[,32] == 0])
+
+#  theta_pv1
+theta_pv1_matrix <- result_01
+
+W <- 0  # Within-imputation variance
+B <- 0  # Between-imputation variance
+M <- step  # Plausible values 的数量
+
+theta_means <- colMeans(theta_pv1_matrix)
+
+grand_mean <- sum(theta_means)/step
+#  Between-Imputation Variance (B)
+B <- sum((theta_means-grand_mean)^2)/(M-1)
+
+#  Within-Imputation Variance (W)
+W <- mean(apply(theta_pv1_matrix, 2, var))
+
+# total V
+V0 <- W + (1 + 1/M) * B
+V0
+var(theta[X[,1] == 0 & X[,32] == 1])
+
+theta_pv1_matrix <- result_00
+
+W <- 0  # Within-imputation variance
+B <- 0  # Between-imputation variance
+M <- step  # Plausible values 的数量
+
+theta_means <- colMeans(theta_pv1_matrix)
+
+grand_mean <- sum(theta_means)/step
+#  Between-Imputation Variance (B)
+B <- sum((theta_means-grand_mean)^2)/(M-1)
+
+#  Within-Imputation Variance (W)
+W <- mean(apply(theta_pv1_matrix, 2, var))
+
+# total V
+V0 <- W + (1 + 1/M) * B
+V0
+var(theta[X[,1] == 0 & X[,32] == 0])
+
+#  theta_pv1
+theta_pv1_matrix <- result
+
+W <- 0  # Within-imputation variance
+B <- 0  # Between-imputation variance
+M <- step  # Plausible values 的数量
+
+theta_means <- colMeans(theta_pv1_matrix)
+
+grand_mean <- sum(theta_means)/step
+#  Between-Imputation Variance (B)
+B <- sum((theta_means-grand_mean)^2)/(M-1)
+
+#  Within-Imputation Variance (W)
+W <- mean(apply(theta_pv1_matrix, 2, var))
+
+# total V
+V <- W + (1 + 1/M) * B
+V
+
+sum(X[,1]== 1 & X[,32]==1)
+sum(X[,1]== 1 & X[,32]==0)
+sum(X[,1]== 0 & X[,32]==1)
+sum(X[,1]== 0 & X[,32]==0)
+
+
+
+

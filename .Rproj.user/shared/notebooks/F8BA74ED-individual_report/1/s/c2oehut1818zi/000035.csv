@@ -1,0 +1,5 @@
+"0","# ----- Add radial lines (segment separators) -----"
+"0","offset <- 20 * pi / 180"
+"0","for (i in 1:k) {"
+"0","  segments(0, 0, cos(theta[i]+offset), sin(theta[i]+offset), col = ""grey80"")"
+"0","}"

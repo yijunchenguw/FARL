@@ -1,0 +1,4 @@
+"0","legend(""topright"","
+"0","       legend = c(""Alpha"", ""Beta""),"
+"0","       fill   = c(alpha(col_alpha, 0.35), alpha(col_beta, 0.35)),"
+"0","       border = NA, bty = ""n"")"
