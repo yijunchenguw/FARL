@@ -26,5 +26,6 @@ Imports:
 Encoding: UTF-8
 Depends: 
     R (>= 3.10)
+URL: https://yijunchenguw.github.io/FARL/, https://github.com/yijunchenguw/FARL
 LazyData: true
 RoxygenNote: 7.3.3

@@ -26,8 +26,8 @@ while maintaining congeniality and estimation stability.
 
 ## Plausible value generation
 
-- [`drawPVs`](http://127.0.0.1:8000/reference/drawPVs.md) generates
-  plausible values under the FARLR framework
+- [`drawPVs`](https://yijunchenguw.github.io/FARL/reference/drawPVs.md)
+  generates plausible values under the FARLR framework
 
 ## Simulation and example data
 
