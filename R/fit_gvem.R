@@ -124,7 +124,7 @@ Farlr_mml <- function(X, Y, parTab, n_sam = 15, method = "FARLR_EMM", lambda = s
   stuDat <- X
   subject <- factor(c(1:n))
   stuDat <- data.frame(cbind(subject, X))
-  colnames(stuDat) <-c("subject",paste("X", c(1:(60)), sep = ""))
+  colnames(stuDat) <-c("subject",paste("X", c(1:p), sep = ""))
 
   Y_back <- reshape(
     stuItems,
@@ -158,7 +158,7 @@ Farlr_mml <- function(X, Y, parTab, n_sam = 15, method = "FARLR_EMM", lambda = s
   #resultII <- fn(nrow(Y), Y_back, parTab, K_hat, ncol(X), lambda, delta.criteria = 1e-3,iter.max = 200, n_sam = 30, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, bin, verbose = TRUE)
   resultII$stuDat <- cbind(subject,Z)
   resultII$stuItems <- stuItems
-  X <- paste0("X", c(1:ncol(sim_a1$X)))
+  colnames(X) <- paste0("X", c(1:ncol(sim_a1$X)))
   resultII$X <- X
   resultII$item_params <- parTab
   invisible(resultII)
