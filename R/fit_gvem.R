@@ -158,6 +158,9 @@ Farlr_mml <- function(X, Y, parTab, n_sam = 15, method = "FARLR_EMM", lambda = s
   #resultII <- fn(nrow(Y), Y_back, parTab, K_hat, ncol(X), lambda, delta.criteria = 1e-3,iter.max = 200, n_sam = 30, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, bin, verbose = TRUE)
   resultII$stuDat <- cbind(subject,Z)
   resultII$stuItems <- stuItems
+  X <- paste0("X", c(1:ncol(sim_a1$X)))
+  resultII$X <- X
+  resultII$item_params <- parTab
   invisible(resultII)
 
   # hatB<-t(1/n*t(Uupdate)%*%X) #Estimated Factor Loading
@@ -171,9 +174,6 @@ Farlr_mml <- function(X, Y, parTab, n_sam = 15, method = "FARLR_EMM", lambda = s
 }
 mml_test <- function(){
   mmlcomp <-  with(sim_a1, farlr_mml(X, Y, parTab, method = "FARLR_Debias")) #mml(X = sim_a1$X, Y = sim_a1$Y, parTab = sim_a1$parTab,  method = "FARLR_Debias")
-  colnames(sim_a1$X) <- paste0("X", c(1:ncol(sim_a1$X)))
-  mmlcomp$X <- sim_a1$X
-  mmlcomp$item_params <- sim_a1$parTab
   invisible(mmlcomp)
   PVs <- drawPVs(mmlcomp, 10L)
   return(PVs)
