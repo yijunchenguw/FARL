@@ -21,91 +21,108 @@ vignette: >
 
 
 # Introduction
-In this tutorial, we illustrate how to conduct multidimensional item response theory (MIRT) analysis of multidimensional two parameter logistic (M2PL) and multidimensional three parameter logistic (M3PL) models, and differential item functioning (DIF) analysis of M2PL models using the `VEMIRT` package in `R`, which can be installed with
+In this tutorial, we illustrate how to conduct large scale assessment of two parameter logistic (M2PL: unidimensional and multidimensional) and three parameter logistic (M3PL) models using the `FARL` package in `R`, which can be installed with
 
 ``` r
 if (!require(devtools)) install.packages("devtools")
 devtools::install_github("yijunchenguw/FARL", build_vignettes = T)
 torch::install_torch()
 ```
-The package requires a C++ compiler to work properly, and users are referred to https://github.com/yijunchenguw/FARL for more information.
 
 ``` r
 library(FARL)
 ```
-Most functions are based on the Gaussian variational expectation-maximization (GVEM) algorithm, which is applicable for high-dimensional latent traits.
-
+Most functions are based on the factor-augment regularized latent regression algorithm, which is also including Gaussian variational expectation-maximization (GVEM) algorithm for high-dimensional latent traits.
 
 # Data Input
 Data required for analysis are summarized below:
 
-| Analysis | Item Responses | Loading Indicator | Group Membership |
+| Analysis | Item Responses | Item Parameters | Background Covariates |
 | :-: | :-: | :-: | :-: |
-| Exploratory Factor Analysis | $\checkmark$ |
-| Confirmatory Factor Analysis | $\checkmark$ | $\checkmark$ |
-| Differential Item Functioning | $\checkmark$ | $\checkmark$ | $\checkmark$ |
+| Farlr MML EMM | $\checkmark$ | $\checkmark$ | $\checkmark$ |
+| Farlr MML Debias | $\checkmark$ | $\checkmark$ | $\checkmark$ |
+| Dire MML | $\checkmark$ | $\checkmark$ | $\checkmark$ |
 
-Here we take dataset `D2PL_data` as an example. This simulated dataset is for DIF 2PL analysis.
-Responses should be an $N$ by $J$ binary matrix, where $N$ and $J$ are the numbers of respondents and items respectively. Currently, all DIF functions and `C2PL_iw2` allow responses to have missing data, which should be coded as `NA`. In this example, there are $N=1500$ respondents and $J=20$ items.
+Here we take dataset `sim_a1` as an example. This simulated dataset is for unidimensional 2PL analysis. Responses should be an $N$ by $J$ binary matrix, where $N$ and $J$ are the numbers of respondents and items respectively. Currently, all MML functions allow responses to have missing data, which should be coded as `NA`. In this example, there are $N=3000$ respondents and $J=15$ items. 
 
 ``` r
-head(D2PL_data$data)
-#>      [,1] [,2] [,3] [,4] [,5] [,6] [,7] [,8] [,9] [,10] [,11] [,12] [,13] [,14] [,15] [,16] [,17] [,18] [,19]
-#> [1,]    0    1    0    1    1    0    1    0    0     0     1     0     0     1     0     1     1     1     1
-#> [2,]    0    0    0    0    1    0    0    0    0     0     0     0     0     1     0     0     0     0     0
-#> [3,]    0    0    0    0    0    0    1    0    0     0     0     0     0     0     0     0     1     0     1
-#> [4,]    0    0    1    0    1    0    0    0    0     1     1     1     1     1     1     1     0     1     0
-#> [5,]    0    0    0    0    0    0    0    0    0     1     0     0     0     0     0     1     0     0     0
-#> [6,]    1    1    1    1    1    0    1    1    1     1     1     1     1     1     1     1     1     1     0
-#>      [,20]
-#> [1,]     0
-#> [2,]     0
-#> [3,]     0
-#> [4,]     0
-#> [5,]     0
-#> [6,]     1
+head(sim_a1$Y)
+#>      i001 i002 i003 i004 i005 i006 i007 i008 i009 i010 i011 i012 i013 i014 i015
+#> [1,]    1    1    1    1    1    1    1    1    1    1    0    1    0    1    0
+#> [2,]    0    1    0    0    0    0    0    1    0    1    0    1    1    1    0
+#> [3,]    1    0    0    0    0    1    0    1    1    0    0    1    1    0    0
+#> [4,]    0    0    0    0    1    0    0    0    0    0    0    0    1    0    0
+#> [5,]    0    1    1    0    0    1    0    1    1    0    0    0    0    1    1
+#> [6,]    1    1    0    1    0    0    0    1    0    0    0    0    0    1    0
 ```
 
-CFA and DIF rely on a $J$ by $D$ binary loading indicator matrix specifying latent dimensions each item loads on, where $D$ is the number of latent dimensions. The latent traits have $D=2$ dimensions here.
+Covariates should be an $N$ by $P$ binary matrix, where $P$ is the numbers of covariates and $P=60$ here .
 
 ``` r
-D2PL_data$model
-#>       [,1] [,2]
-#>  [1,]    1    0
-#>  [2,]    0    1
-#>  [3,]    1    0
-#>  [4,]    0    1
-#>  [5,]    1    0
-#>  [6,]    0    1
-#>  [7,]    1    0
-#>  [8,]    0    1
-#>  [9,]    1    0
-#> [10,]    0    1
-#> [11,]    1    0
-#> [12,]    0    1
-#> [13,]    1    0
-#> [14,]    0    1
-#> [15,]    1    0
-#> [16,]    0    1
-#> [17,]    1    0
-#> [18,]    0    1
-#> [19,]    1    0
-#> [20,]    0    1
+head(sim_a1$X)
+Show in New Window
+#>      [,1] [,2]       [,3] [,4] [,5] [,6] [,7]       [,8] [,9]      [,10]      [,11]      [,12]         [,13]      [,14] [,15]
+#> [1,]    1    1  2.0679032    1    1    1    1  1.3037993    1 1.09682610  0.8427529  1.3828371 -0.1653623137  1.4209337     1
+#> [2,]    1    0  0.1913680    0    1    1    0  0.2450981    1 0.63345311 -0.1196839  0.6937069 -0.1259691264  1.1253781     1
+#> [3,]    1    1  0.9718647    1    1    1    1  0.1302181    0 0.36494637  0.0330159  0.3941355  0.0968173406  0.5511566     1
+#> [4,]    0    0 -0.4845058    1    0    0    0  0.1197165    0 0.21706507 -0.2415855 -0.7939687  0.2280599688 -0.4566019     0
+#> [5,]    1    1  0.8427349    1    1    1    0  0.1999399    1 0.47819559 -0.4100250  0.3917804 -0.0880263233  0.1642046     1
+#> [6,]    0    1  0.2229768    1    1    1    1 -0.4628130    1 0.04376757 -0.2901235  0.4018158 -0.0005390583  0.3927010     0
+#>             [,16]        [,17] [,18]      [,19] [,20] [,21] [,22]       [,23] [,24] [,25] [,26]      [,27] [,28] [,29]
+#> [1,]  0.540659029  1.369543063     1  0.4742712     1     1     1  0.82973955     1     1     1  1.7388040     1     1
+#> [2,] -0.003792834  1.070710587     1 -0.3061996     0     1     1  0.18821611     1     1     1  0.4556997     1     1
+#> [3,] -0.243924744 -0.179185102     1 -0.2447433     1     1     1  0.39183640     1     1     1  0.2318922     0     1
+#> [4,]  0.093707338 -0.005754657     0 -0.3093143     0     1     0 -1.07016824     0     0     0 -0.9045823     0     0
+#> [5,]  0.018380392  0.382342111     1  0.0446805     1     1     1  0.27366648     1     1     1  0.7928303     1     1
+#> [6,]  0.010587176  0.366088696     1 -0.2434325     1     1     1  0.06307681     1     1     0  0.1970994     0     1
+#>           [,30] [,31]      [,32]      [,33]       [,34] [,35] [,36]       [,37] [,38] [,39]       [,40]      [,41]      [,42]
+#> [1,]  1.5351016     1  0.2546925  0.7648541  0.36941003     1     1  1.03780371     1     1  0.21455054  0.6791615  1.5895765
+#> [2,]  0.2630221     0  0.4524690  0.4419286  0.47123234     1     1  0.57052628     1     1 -0.09296555  0.5085597  1.3499923
+#> [3,]  1.2089090     0 -0.9102488 -1.4435319 -1.07960210     0     0  0.24721761     0     0 -1.10545483 -0.9258674 -1.9731099
+#> [4,] -1.1183576     0  0.1319661 -0.2451976 -0.16819181     1     0 -0.73743444     0     1 -0.21767589  0.4734457  0.2190550
+#> [5,] -0.4262944     0  1.0239519  0.7549497  0.43602642     1     1 -0.06051122     0     1 -0.06753414  0.3286283  0.9536626
+#> [6,]  0.6460686     1  0.5775334  0.5379220  0.06542456     1     1 -0.39536327     0     1  0.59447580  0.9896028 -0.2688888
+#>           [,43]       [,44] [,45]       [,46] [,47] [,48] [,49] [,50]      [,51]      [,52] [,53]      [,54]       [,55]
+#> [1,]  0.5488924  1.42465744     1  0.42620577     1     1     0     1  1.1102212  0.9135172     1  0.6647746  0.05475251
+#> [2,]  0.6601062  0.06694695     1  0.70487411     1     1     1     1  0.9399354  0.1303512     1  0.4686640  0.39806158
+#> [3,] -0.3655401 -1.59498840     0  0.13829183     0     0     0     0 -1.8120315 -0.7480013     0 -2.1218713 -1.03264209
+#> [4,]  0.2190113 -0.45074521     0 -0.26935597     1     0     1     0 -0.1058362 -0.2642951     1 -0.0294999 -0.20558108
+#> [5,] -0.2052869  0.57406397     1 -0.60604511     1     1     1     1  0.7939840  0.6582999     1  0.9281294  0.62677908
+#> [6,] -0.2110090  0.58587624     1  0.04230081     1     1     1     1  0.7743891 -0.4043456     1  1.1205110 -0.38887556
+#>             [,56] [,57]      [,58] [,59]      [,60]
+#> [1,]  0.004208496     1  0.4270128     1  0.5763684
+#> [2,]  0.864669519     1 -0.0899585     1  1.0310951
+#> [3,] -1.071124898     0 -0.6598127     0 -2.0782958
+#> [4,]  0.194304912     0 -0.1514529     0 -0.4015717
+#> [5,]  0.569960739     1  0.7587688     1  0.2238712
+#> [6,] -0.188482122     1  0.2998315     0 -0.1612478
 ```
 
-DIF analysis additionally needs a group membership vector of length $N$, whose elements are integers from $1$ to $G$, where $G$ is the number of groups. There are $G=3$ groups in this example.
+The item parameters are built into the parTab component, which is also included in the dataset `sim_a1`. In reality, this should be created separately using the known information.
 
 ``` r
-table(D2PL_data$group)
-#> 
-#>   1   2   3 
-#> 500 500 500
+sim_a1$parTab
+   item           b         a c ItemID test subtest     slope  difficulty guessing D
+#>     1  0.24367868 1.0005257 0  item1 comp    main 1.0005257  0.24367868        0 1
+#>     2 -1.79395380 1.1258010 0  item2 comp    main 1.1258010 -1.79395380        0 1
+#>     3  1.21092047 0.8435464 0  item3 comp    main 0.8435464  1.21092047        0 1
+#>     4 -0.27356014 1.8747028 0  item4 comp    main 1.8747028 -0.27356014        0 1
+#>     5  0.62870503 0.8534336 0  item5 comp    main 0.8534336  0.62870503        0 1
+#>     6 -0.03464778 1.0371741 0  item6 comp    main 1.0371741 -0.03464778        0 1
+#>     7  0.61194642 1.4060425 0  item7 comp    main 1.4060425  0.61194642        0 1
+#>     8 -0.48305660 1.4886061 0  item8 comp    main 1.4886061 -0.48305660        0 1
+#>     9  0.69903068 1.0044162 0  item9 comp    main 1.0044162  0.69903068        0 1
+#>   10  0.42177184 1.2750785 0 item10 comp    main 1.2750785  0.42177184        0 1
+#>   11  1.71816986 0.9801124 0 item11 comp    main 0.9801124  1.71816986        0 1
+#>   12 -1.21716531 0.8668311 0 item12 comp    main 0.8668311 -1.21716531        0 1
+#>   13  0.85217179 0.7547219 0 item13 comp    main 0.7547219  0.85217179        0 1
+#>   14  0.05721887 1.5642095 0 item14 comp    main 1.5642095  0.05721887        0 1
+#>   15  0.15261596 1.0594892 0 item15 comp    main 1.0594892  0.15261596        0 1
 ```
 
 
 # Data Output
-All the functions output estimates of item parameters and some other related parameters. In addition, `C2PL_gvem`, `C2PL_bs` and `C2PL_iw2` are able to provide the standard errors of item parameter estimates.
-
+All the mml functions output estimates of estimated coefficients of covariates and variance of residual. 
 
 # Exploratory Factor Analysis
 ## Parallel Analysis

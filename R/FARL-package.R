@@ -14,23 +14,30 @@
 #'
 #' @section Latent regression models:
 #' \itemize{
-#'   \item \code{\link{FARLR_mml}} fits the factor-augmented regularized latent regression model via marginal maximum likelihood
+#'   \item \code{\link{Farlr_mml}} fits the factor-augmented regularized latent regression model via marginal maximum likelihood
+#'     \itemize{
+#'       \item Method 1: \code{FARLR_EMM}
+#'       \item Method 2: \code{FARLR_Debias}
+#'     }
 #' }
-#'
-#' @section Debiasing and bias correction:
+#' @section Latent regression models:
 #' \itemize{
-#'   \item \code{\link{FARLR_mml_debias}} applies debiasing corrections to FARLR estimates
+#'  \item \code{\link{Dire_mml}} fits the DIRE latent regression model
 #' }
-#'
 #' @section Plausible value generation:
 #' \itemize{
-#'   \item \code{\link{drawPVs}} generates plausible values under the FARLR framework
+#'   \item \code{\link{Farlr_drawPVs}} generates plausible values under the FARLR framework
 #' }
 #'
 #' @section Simulation and example data:
 #' \itemize{
 #'   \item Built-in example datasets illustrating FARLR estimation and PV generation
 #'   \item Utility functions for simulation studies in large-scale assessment settings
+#' }
+#'
+#' @section Plausible value generation:
+#' \itemize{
+#'   \item \code{\link{Dire_drawPVs}} generates plausible values under the Dire framework
 #' }
 #'
 #' @keywords internal

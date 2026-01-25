@@ -17,17 +17,28 @@ while maintaining congeniality and estimation stability.
 
 ## Latent regression models
 
-- `FARLR_mml` fits the factor-augmented regularized latent regression
-  model via marginal maximum likelihood
+- [`Farlr_mml`](https://yijunchenguw.github.io/FARL/reference/Farlr_mml.md)
+  fits the factor-augmented regularized latent regression model via
+  marginal maximum likelihood
 
-## Debiasing and bias correction
+  - Method 1: `FARLR_EMM`
 
-- `FARLR_mml_debias` applies debiasing corrections to FARLR estimates
+  - Method 2: `FARLR_Debias`
+
+&nbsp;
+
+- [`Dire_mml`](https://yijunchenguw.github.io/FARL/reference/Dire_mml.md)
+  fits the DIRE latent regression model
 
 ## Plausible value generation
 
-- [`drawPVs`](https://yijunchenguw.github.io/FARL/reference/drawPVs.md)
+- [`Farlr_drawPVs`](https://yijunchenguw.github.io/FARL/reference/Farlr_drawPVs.md)
   generates plausible values under the FARLR framework
+
+&nbsp;
+
+- [`Dire_drawPVs`](https://yijunchenguw.github.io/FARL/reference/Dire_drawPVs.md)
+  generates plausible values under the Dire framework
 
 ## Simulation and example data
 

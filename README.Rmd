@@ -18,12 +18,18 @@ knitr::opts_chunk$set(
 <!-- badges: start -->
 <!-- badges: end -->
 
-The goal of `FARL` is to provide computationally efficient tools for
-large scale assessment, to generate Plausible Values, with high accuracy. 
-The package contains several example datasets and functions for
+FARL models integrate latent trait estimation with regularized regression, enabling scalable modeling of relationships between latent abilities and high-dimensional covariates.
 
-* FARLR: Factor-augmented Regularized Latent Regression
-* FARLR-debias: Factor-augmented Regularized Latent Regression - Debias
+* FARLR_EMM: Factor-augmented regularized latent regression estimated via an iterative
+  EMM-style procedure.
+  
+* FARLR_debias: Factor-augmented regularized latent regression with post debiasing.
+
+* FARLR_drawPVs: Drawing plausible values from fitted FARLR models. 
+
+* Dire_mml: Marginal maximum likelihood estimation of DIRE models.
+
+* Dire_drawPVs: Drawing plausible values from fitted DIRE models. 
 
 ## Installation
 
