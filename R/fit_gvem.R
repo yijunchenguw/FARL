@@ -173,11 +173,11 @@ Farlr_mml <- function(X, Y, parTab, n_sam = 15, method = "FARLR_EMM", lambda = s
 
 }
 mml_test <- function(){
-  mmlcomp <-  with(sim_a1, farlr_mml(X, Y, parTab, method = "FARLR_Debias")) #mml(X = sim_a1$X, Y = sim_a1$Y, parTab = sim_a1$parTab,  method = "FARLR_Debias")
+  mmlcomp <-  with(sim_a1, Farlr_mml(X, Y, parTab, method = "FARLR_Debias")) #mml(X = sim_a1$X, Y = sim_a1$Y, parTab = sim_a1$parTab,  method = "FARLR_Debias")
   invisible(mmlcomp)
   PVs <- drawPVs(mmlcomp, 10L)
   return(PVs)
 }
 mml_test2 <- function(){
-  with(sim_a1, farlr_mml(X, Y, parTab, method = "FARLR_Debias"))
+  with(sim_a1, Farlr_mml(X, Y, parTab, method = "FARLR_EMM"))
   }
