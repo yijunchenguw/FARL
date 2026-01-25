@@ -236,10 +236,10 @@ farlr_debias <- function(n,resp, parTab, K_hat, p, lambda_all, delta.criteria = 
       sigma_old <- sigma_means
       beta_gamma_old <- beta_gamma_means
       iter <- iter + 1
-      #print(delta)
+      print(delta)
     }
-    #print(ll)
-    #print(iter)
+    print(ll)
+    print(iter)
     if (verbose) {setTxtProgressBar(pb, pb$getVal() + 1)}
     results[[ll]] <- list(beta_gamma_old,sigma_old,bic)
   }

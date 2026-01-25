@@ -154,7 +154,7 @@ Farlr_mml <- function(X, Y, parTab, n_sam = 15, method = "FARLR_EMM", lambda = s
   } else {
     stop("Unknown method: ", method)
   }
-  resultII <-fn(n, resp, parTab, K_hat, ncol(X), lambda_all = lambda, delta.criteria = 1e-3,iter.max = 200, n_sam = n_sam, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, Uupdate,hatU, Fan,bin, verbose = TRUE)
+  resultII <-fn(n, Y, parTab, K_hat, ncol(X), lambda_all = lambda, delta.criteria,iter.max, n_sam = n_sam, window.size,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, Uupdate,hatU, Fan, main = bin, verbose = verbose)
   #resultII <- fn(nrow(Y), Y_back, parTab, K_hat, ncol(X), lambda, delta.criteria = 1e-3,iter.max = 200, n_sam = 30, window.size = 50,theta_est_irt.mean, theta_est_irt.se, resp_rep, Z.em, bin, verbose = TRUE)
   resultII$stuDat <- cbind(subject,Z)
   resultII$stuItems <- stuItems
