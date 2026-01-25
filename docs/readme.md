@@ -1,4 +1,4 @@
-# FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment ![](reference/figures/logo.png)
+# FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment
 
 The goal of `FARL` is to provide computationally efficient tools for
 large scale assessment, to generate Plausible Values, with high

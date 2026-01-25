@@ -1,4 +1,11 @@
-# FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment ![](reference/figures/logo.png)
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+# FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment <img src="man/figures/logo.png" align="right" height="120" alt="" />
+
+<!-- badges: start -->
+
+<!-- badges: end -->
 
 The goal of `FARL` is to provide computationally efficient tools for
 large scale assessment, to generate Plausible Values, with high
@@ -12,7 +19,7 @@ for
 
 To install this package from source:
 
-1.  **Windows** users may need to install the
+1)  **Windows** users may need to install the
     [Rtools](https://CRAN.R-project.org/bin/windows/Rtools/) and include
     the checkbox option of installing Rtools to their path for easier
     command line usage. **Mac** users may need to install Xcode command
@@ -22,7 +29,7 @@ To install this package from source:
     distributions should already have up to date compilers (or if not
     they can be installed/updated easily).
 
-2.  Install the `devtools` package (if necessary), and install the
+2)  Install the `devtools` package (if necessary), and install the
     package from [GitHub](https://github.com/) with
 
 ``` r

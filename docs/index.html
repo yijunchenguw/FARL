@@ -48,8 +48,37 @@
   </div>
 </nav><div class="container template-home">
 <div class="row">
-  <main id="main" class="col-md-9">
-Implements factor-adjusted regularized latent regression models for large-scale assessment and multilevel latent variable analysis. The package provides estimation, simulation, and diagnostic tools for FARL-type models under various conditions.
+  <main id="main" class="col-md-9"><div class="section level1">
+<div class="page-header"><h1 id="farl-use-factor-augmented-regularized-latent-regression-for-large-scale-assessment-">FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment <img src="reference/figures/logo.png" align="right" height="120" alt=""><a class="anchor" aria-label="anchor" href="#farl-use-factor-augmented-regularized-latent-regression-for-large-scale-assessment-"></a>
+</h1></div>
+<!-- badges: start -->
+<!-- badges: end -->
+<p>The goal of <code>FARL</code> is to provide computationally efficient tools for large scale assessment, to generate Plausible Values, with high accuracy. The package contains several example datasets and functions for</p>
+<ul>
+<li>FARLR: Factor-augmented Regularized Latent Regression</li>
+<li>FARLR-debias: Factor-augmented Regularized Latent Regression - Debias</li>
+</ul>
+<div class="section level2">
+<h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
+</h2>
+<p>To install this package from source:</p>
+<ol style="list-style-type: decimal">
+<li><p><strong>Windows</strong> users may need to install the <a href="https://CRAN.R-project.org/bin/windows/Rtools/" class="external-link">Rtools</a> and include the checkbox option of installing Rtools to their path for easier command line usage. <strong>Mac</strong> users may need to install Xcode command line tools by <code>sudo xcode-select --install</code> in the terminal, and then install <a href="https://mac.r-project.org/tools/" class="external-link">GNU Fortran compiler</a>. Most <strong>Linux</strong> distributions should already have up to date compilers (or if not they can be installed/updated easily).</p></li>
+<li><p>Install the <code>devtools</code> package (if necessary), and install the package from <a href="https://github.com/" class="external-link">GitHub</a> with</p></li>
+</ol>
+<div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw">if</span> <span class="op">(</span><span class="op">!</span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">require</a></span><span class="op">(</span><span class="va"><a href="https://devtools.r-lib.org/" class="external-link">devtools</a></span><span class="op">)</span><span class="op">)</span> <span class="fu"><a href="https://rdrr.io/r/utils/install.packages.html" class="external-link">install.packages</a></span><span class="op">(</span><span class="st">"devtools"</span><span class="op">)</span></span>
+<span><span class="fu">devtools</span><span class="fu">::</span><span class="fu"><a href="https://remotes.r-lib.org/reference/install_github.html" class="external-link">install_github</a></span><span class="op">(</span><span class="st">"yijunchenguw/FARL"</span>, build_vignettes <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="fu">torch</span><span class="fu">::</span><span class="fu"><a href="https://torch.mlverse.org/docs/reference/install_torch.html" class="external-link">install_torch</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="tutorial">Tutorial<a class="anchor" aria-label="anchor" href="#tutorial"></a>
+</h2>
+<p>After installing the <code>FARL</code> package, open its tutorial by running</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/utils/vignette.html" class="external-link">vignette</a></span><span class="op">(</span><span class="st">"FARL"</span><span class="op">)</span></span></code></pre></div>
+</div>
+</div>
   </main><aside class="col-md-3"><div class="links">
 <h2 data-toc-skip>Links</h2>
 <ul class="list-unstyled">
