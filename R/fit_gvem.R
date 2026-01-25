@@ -85,7 +85,7 @@ library(torch)
 #' }
 #'
 #' @export
-farlr_mml <- function(X, Y, parTab, n_sam = 30, method = "FARLR_EMM", lambda = seq(0.1, 0.5, by = 0.1),delta.criteria = 1e-3,iter.max = 500, window.size = 50, verbose = TRUE) {
+Farlr_mml <- function(X, Y, parTab, n_sam = 15, method = "FARLR_EMM", lambda = seq(0.1, 0.5, by = 0.1),delta.criteria = 1e-3,iter.max = 500, window.size = 50, verbose = TRUE) {
   PA <- paran(X, iterations = 500, centile = 0, quiet = TRUE)
   K_hat <- PA$Retained
   fa <- factor.analysis(X, K_hat, method = "ml")
@@ -119,6 +119,13 @@ farlr_mml <- function(X, Y, parTab, n_sam = 30, method = "FARLR_EMM", lambda = s
   stuItems <- reshape(data=data.frame(cbind(Y,subject)), varying=itemNames, idvar="subject",
                       direction="long", v.names="score",
                       times=itemNames, timevar="key")
+  new_itemNames <- (paste0("item",1:ncol(Y)))
+  stuItems$key <- rep(new_itemNames,each=n)
+  stuDat <- X
+  subject <- factor(c(1:n))
+  stuDat <- data.frame(cbind(subject, X))
+  colnames(stuDat) <-c("subject",paste("X", c(1:(60)), sep = ""))
+
   Y_back <- reshape(
     stuItems,
     idvar = "subject",

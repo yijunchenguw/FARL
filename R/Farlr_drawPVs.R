@@ -66,7 +66,7 @@ variance.sample <- function(theta_matrix, step = 10){
 #' measurement uncertainty in secondary analyses.
 #'
 #' @export
-drawPVs <- function (mmlcomp, npv = 10L,verbose = TRUE) {
+Farlr_drawPVs <- function (mmlcomp, npv = 10L,verbose = TRUE) {
   # Define quadrature points (30 points from -4 to 4)
   # Compute EAP estimates for each examinee
   n = nrow(mmlcomp$X)

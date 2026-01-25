@@ -22,7 +22,9 @@ Imports:
     mirt,
     psych,
     torch,
-    glmnet
+    glmnet,
+    EdSurvey,
+    Dire
 Encoding: UTF-8
 Depends: 
     R (>= 3.10)
