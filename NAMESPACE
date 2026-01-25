@@ -1,4 +1,4 @@
-export(mml)
+export(farlr_mml)
 export(mml_test)
 export(drawPVs)
 import(MASS)

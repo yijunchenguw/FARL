@@ -10,7 +10,7 @@
   : FARLR Debiased Estimation for Regularized Latent Regression
 - [`farlr_emm()`](https://yijunchenguw.github.io/FARL/reference/farlr_emm.md)
   : FARLR EM-M Algorithm for Latent Regression with Regularization
-- [`mml()`](https://yijunchenguw.github.io/FARL/reference/mml.md) : Fit
-  a Latent Regression Model via the EM Algorithm
+- [`farlr_mml()`](https://yijunchenguw.github.io/FARL/reference/farlr_mml.md)
+  : FARLR Marginal Maximum Likelihood Estimation
 - [`sim_a1`](https://yijunchenguw.github.io/FARL/reference/sim_a1.md) :
   Simulated Dataset: 1D FARLR-Style Dichotomous Item Responses

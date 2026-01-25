@@ -3,42 +3,89 @@ library(lavaan)
 library(mirt)
 library(glmnet)
 library(torch)
-#' Fit a Latent Regression Model via the EM Algorithm
+#' FARLR Marginal Maximum Likelihood Estimation
 #'
-#' Fits a latent regression model using an expectation--maximization (EM)
-#' algorithm, where latent abilities are linked to observed covariates and
-#' item response data through an IRT measurement model.
+#' Fits a Factor-Adjusted Regularized Latent Regression (FARLR) model using a
+#' marginal maximum likelihood (MML) framework. This function serves as a unified
+#' interface that supports multiple estimation strategies, including
+#' \code{"FARLR_EMM"} and \code{"FARLR_Debias"}. Latent traits are integrated out
+#' using Monte Carlo approximation, and regression parameters are estimated under
+#' regularization. Depending on the specified method, the algorithm either
+#' employs an EM–M–type iterative scheme or a post-selection debiasing procedure.
 #'
-#' @param X Numeric matrix. Design matrix of covariates (\eqn{N \times p}).
-#' @param Y Matrix. Item response matrix (\eqn{N \times J}).
-#' @param a Numeric vector or matrix. Item discrimination parameters.
-#' @param d Numeric vector or matrix. Item difficulty (intercept) parameters.
-#' @param p Integer. Number of covariates included in the latent regression.
-#' @param n_sam Integer. Number of Monte Carlo or quadrature samples used to
-#'   approximate posterior expectations in the E-step. Default is \code{30}.
-#' @param verbose Logical. If \code{TRUE}, prints progress information during
-#'   estimation. Default is \code{TRUE}.
+#' @param X Matrix. Covariate design matrix for the latent regression model,
+#'   typically of dimension \code{n x p}.
+#' @param Y Matrix. Observed item response matrix of dimension \code{n x J}.
+#' @param parTab Data frame. Item parameter table containing at least the columns
+#'   \code{slope}, \code{difficulty}, and \code{guessin}, used to define the item
+#'   response model.
+#' @param n_sam Integer. Number of Monte Carlo samples per individual used to
+#'   approximate integrals over latent traits. Defaults to \code{5}.
+#' @param method Character string. Estimation method to be used. Supported values
+#'   include:
+#'   \describe{
+#'     \item{\code{"FARLR_EMM"}}{Iterative FARLR estimation based on an EM–M–type
+#'     updating scheme with regularization.}
+#'     \item{\code{"FARLR_Debias"}}{FARLR estimation with regularized variable
+#'     selection followed by a post-selection debiased refit.}
+#'   }
+#'   Defaults to \code{"FARLR_EMM"}.
+#' @param lambda Numeric vector. Candidate regularization parameters used for
+#'   penalized regression. Defaults to \code{seq(0.1, 0.5, by = 0.1)}.
+#' @param delta.criteria Numeric. Convergence tolerance for iterative updates.
+#'   Defaults to \code{1e-3}.
+#' @param iter.max Integer. Maximum number of iterations allowed for each value of
+#'   \code{lambda}. Defaults to \code{200}.
+#' @param window.size Integer. Window size for sliding-window averaging of
+#'   coefficient updates used to stabilize iterative estimation. Defaults to
+#'   \code{50}.
+#' @param verbose Logical. If \code{TRUE}, progress messages and iteration status
+#'   are displayed during model fitting. Defaults to \code{TRUE}.
 #'
-#' @return A list containing:
-#' \itemize{
-#'   \item \code{coef}: Estimated coefficients from the latent regression model.
-#'   \item \code{Sigma}: Estimated covariance matrix of the latent variables.
-#'   \item \code{theta}: Posterior mean estimates of latent abilities.
-#'   \item \code{converged}: Logical indicator of whether the EM algorithm
-#'     converged.
-#'   \item \code{iter}: Number of EM iterations performed.
+#' @return A list containing estimation results. The exact contents depend on the
+#'   selected \code{method}, but typically include:
+#' \describe{
+#'   \item{\code{coefficients}}{Estimated regression coefficients.}
+#'   \item{\code{sigma}}{Estimated residual standard deviation.}
+#'   \item{\code{LogLik}}{Value of the objective function evaluated at the selected
+#'   regularization parameter.}
+#'   \item{\code{lambda}}{Selected regularization parameter.}
+#'   \item{\code{Convergence}}{Indicator of convergence status.}
 #' }
 #'
 #' @details
-#' The EM algorithm alternates between computing the conditional expectations
-#' of latent abilities given the observed responses and current parameter
-#' estimates (E-step) and maximizing the expected complete-data log-likelihood
-#' with respect to the model parameters (M-step). Numerical optimization is
-#' employed for item parameters, while closed-form updates are available for
-#' latent regression and covariance parameters.
+#' The function marginalizes over latent variables using Monte Carlo integration
+#' and estimates regression parameters under regularization. When
+#' \code{method = "FARLR_EMM"}, parameters are updated iteratively using an
+#' EM–M–style procedure. When \code{method = "FARLR_Debias"}, a penalized estimator
+#' is first used for variable selection, followed by a debiased refit on the
+#' selected active set. The regularization parameter is selected by minimizing a
+#' BIC-type criterion over the supplied \code{lambda} grid.
+#'
+#' @seealso
+#' \code{\link{farlr_debias}}, \code{\link{glmnet}}, \code{\link[mirt]{simdata}}
+#'
+#' @examples
+#' \dontrun{
+#' fit_emm <- farlr_mml(
+#'   X = X,
+#'   Y = Y,
+#'   parTab = parTab,
+#'   method = "FARLR_EMM",
+#'   verbose = TRUE
+#' )
+#'
+#' fit_debias <- farlr_mml(
+#'   X = X,
+#'   Y = Y,
+#'   parTab = parTab,
+#'   method = "FARLR_Debias",
+#'   verbose = TRUE
+#' )
+#' }
 #'
 #' @export
-mml <- function(X, Y, parTab, n_sam = 5, method = "FARLR_EMM", lambda = seq(0.1, 0.5, by = 0.1),delta.criteria = 1e-3,iter.max = 200, window.size = 50, verbose = TRUE) {
+farlr_mml <- function(X, Y, parTab, n_sam = 5, method = "FARLR_EMM", lambda = seq(0.1, 0.5, by = 0.1),delta.criteria = 1e-3,iter.max = 200, window.size = 50, verbose = TRUE) {
   PA <- paran(X, iterations = 500, centile = 0, quiet = TRUE)
   K_hat <- PA$Retained
   fa <- factor.analysis(X, K_hat, method = "ml")
@@ -116,7 +163,7 @@ mml <- function(X, Y, parTab, n_sam = 5, method = "FARLR_EMM", lambda = seq(0.1,
 
 }
 mml_test <- function(){
-  mmlcomp <-  with(sim_a1, mml(X, Y, parTab, method = "FARLR_Debias")) #mml(X = sim_a1$X, Y = sim_a1$Y, parTab = sim_a1$parTab,  method = "FARLR_Debias")
+  mmlcomp <-  with(sim_a1, farlr_mml(X, Y, parTab, method = "FARLR_Debias")) #mml(X = sim_a1$X, Y = sim_a1$Y, parTab = sim_a1$parTab,  method = "FARLR_Debias")
   colnames(sim_a1$X) <- paste0("X", c(1:ncol(sim_a1$X)))
   mmlcomp$X <- sim_a1$X
   mmlcomp$item_params <- sim_a1$parTab
@@ -125,5 +172,5 @@ mml_test <- function(){
   return(PVs)
 }
 mml_test2 <- function(){
-  with(sim_a1, mml(X, Y, parTab, method = "FARLR_Debias"))
+  with(sim_a1, farlr_mml(X, Y, parTab, method = "FARLR_Debias"))
   }

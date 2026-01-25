@@ -48,6 +48,14 @@ congeniality and estimation stability.
 }
 }
 
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://yijunchenguw.github.io/FARL/}
+  \item \url{https://github.com/yijunchenguw/FARL}
+}
+
+}
 \author{
 \strong{Maintainer}: Yijun Cheng \email{chengxb@uw.edu} (\href{https://orcid.org/0000-0002-0671-9193}{ORCID})
 

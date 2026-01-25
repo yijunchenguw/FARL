@@ -37,6 +37,14 @@ while maintaining congeniality and estimation stability.
 - Utility functions for simulation studies in large-scale assessment
   settings
 
+## See also
+
+Useful links:
+
+- <https://yijunchenguw.github.io/FARL/>
+
+- <https://github.com/yijunchenguw/FARL>
+
 ## Author
 
 **Maintainer**: Yijun Cheng <chengxb@uw.edu>
