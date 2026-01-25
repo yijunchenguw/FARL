@@ -85,7 +85,7 @@ library(torch)
 #' }
 #'
 #' @export
-farlr_mml <- function(X, Y, parTab, n_sam = 5, method = "FARLR_EMM", lambda = seq(0.1, 0.5, by = 0.1),delta.criteria = 1e-3,iter.max = 200, window.size = 50, verbose = TRUE) {
+farlr_mml <- function(X, Y, parTab, n_sam = 30, method = "FARLR_EMM", lambda = seq(0.1, 0.5, by = 0.1),delta.criteria = 1e-3,iter.max = 500, window.size = 50, verbose = TRUE) {
   PA <- paran(X, iterations = 500, centile = 0, quiet = TRUE)
   K_hat <- PA$Retained
   fa <- factor.analysis(X, K_hat, method = "ml")
