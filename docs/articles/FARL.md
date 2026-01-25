@@ -95,7 +95,7 @@ Show in New Window
 
 The item parameters are built into the parTab component, which is also
 included in the dataset `sim_a1`. In reality, this should be created
-separately using the known information
+separately using the known information.
 
 ``` r
 sim_a1$parTab
