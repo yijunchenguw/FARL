@@ -1,7 +1,7 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment <img src="reference/figures/readme_logo.png" align="right" height="120" alt="FARL logo" />
+# FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment <img src="man/figures/logo.png" align="right" height="200" alt="" />
 
 <!-- badges: start -->
 

@@ -4,8 +4,8 @@ template:
   bootstrap: 5
   bootswatch: flatly
   math-rendering: katex
-  includes:
-    in_header: pkgdown/favicon.html
+#  includes:
+#    in_header: pkgdown/favicon.html
 navbar:
   structure:
     left: [intro, tutorials, reference]
