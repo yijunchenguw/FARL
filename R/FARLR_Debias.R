@@ -2,278 +2,344 @@ library(torch)
 #' FARLR Debiased Estimation for Regularized Latent Regression
 #'
 #' Fits a Factor-Augmented Regularized Latent Regression (FARLR) model with a
-#' post-selection debiasing procedure. Latent traits are approximated using a
-#' Monte Carlo scheme based on a normal approximation to IRT posterior estimates
-#' (\code{theta_est_irt.mean}, \code{theta_est_irt.se}). Regression coefficients
-#' are first obtained via weighted LASSO regularization using \code{glmnet}, after
-#' which a debiased refit is performed on the selected active set using weighted
-#' least squares. To improve numerical stability, coefficient updates are smoothed
-#' across iterations using a sliding-window averaging scheme. The regularization
-#' parameter \code{lambda} is selected by minimizing a BIC-type criterion over
-#' \code{lambda_all}.
+#' post-selection debiasing step. The method uses Monte Carlo samples from a
+#' normal approximation to the IRT posterior distribution of the latent trait,
+#' based on \code{theta_est_irt.mean} and \code{theta_est_irt.se}. For each
+#' candidate value in \code{lambda_all}, regression coefficients are estimated
+#' by weighted LASSO using \code{glmnet}. The selected coefficients are then
+#' debiased using a weighted correction step. Coefficient updates are smoothed
+#' across iterations using a sliding-window average, and the final tuning
+#' parameter is chosen by minimizing a BIC-type criterion.
 #'
-#' @param n Integer. Number of individuals (sample size).
-#' @param resp Matrix. Observed item response matrix of dimension \code{n x J}.
-#' @param parTab Data frame. Item parameter table containing at least the columns
-#'   \code{slope}, \code{difficulty}, and \code{guessin}.
-#' @param K_hat Integer. Number of latent components included in the regression
-#'   design matrix \code{Z.em}.
-#' @param p Integer. Number of observed covariates included in \code{Z.em}.
-#' @param lambda_all Numeric vector. Candidate regularization parameters supplied
+#' This implementation avoids forming large projection and diagonal weight
+#' matrices directly. Instead, it uses equivalent matrix products, which improves
+#' computational efficiency while preserving the intended calculations.
+#'
+#' @param N Integer. Number of individuals.
+#' @param resp Matrix. Observed item response matrix of dimension \code{N x J}.
+#' @param resp.em Matrix. Expanded response matrix used in the Monte Carlo
+#'   integration step.
+#' @param a Numeric vector. Item slope parameters.
+#' @param d Numeric vector. Item difficulty or intercept parameters.
+#' @param c Numeric vector. Item guessing parameters.
+#' @param b1 Numeric vector. Additional item parameter used by \code{q_num_NA()}.
+#' @param b2 Numeric vector. Additional item parameter used by \code{q_num_NA()}.
+#' @param type Object specifying the item model type used by \code{q_num_NA()}.
+#' @param K_hat Integer. Number of estimated latent factor components.
+#' @param p Integer. Number of observed covariates.
+#' @param lambda_all Numeric vector. Candidate regularization parameters passed
 #'   to \code{glmnet}.
-#' @param delta.criteria Numeric. Convergence tolerance for iterative updates.
+#' @param delta.criteria Numeric. Convergence tolerance for the iterative updates.
 #'   Defaults to \code{1e-3}.
 #' @param iter.max Integer. Maximum number of iterations for each value of
 #'   \code{lambda}. Defaults to \code{500}.
-#' @param n_sam Integer. Number of Monte Carlo samples per individual used to
-#'   approximate latent trait uncertainty. Defaults to \code{5}.
-#' @param window.size Integer. Window size for sliding-window averaging of
-#'   regression coefficient updates. Defaults to \code{50}.
-#' @param theta_est_irt.mean Numeric vector of length \code{n}. Posterior mean
-#'   estimates of the latent trait obtained from an IRT model.
-#' @param theta_est_irt.se Numeric vector of length \code{n}. Posterior standard
-#'   error estimates of the latent trait obtained from an IRT model.
-#' @param resp_rep Matrix. Replicated or expanded response matrix used for Monte
-#'   Carlo integration (see \code{q_num_NA}).
-#' @param Z.em Matrix. Regression design matrix, typically of dimension
-#'   \code{n x (K_hat + p)}.
-#' @param Uupdate Internal object. Passed to internal update routines controlling
-#'   coefficient smoothing.
-#' @param hatU Internal object. Passed to internal routines used in the debiasing
-#'   refit.
-#' @param Fan Internal object. Passed to internal routines for adaptive weighting
-#'   or regularization.
-#' @param main Integer vector. Indices of predictors to be treated as unpenalized
-#'   in \code{glmnet} via \code{penalty.factor = 0}. Remaining predictors are
-#'   penalized unless they correspond to the first \code{K_hat} latent components.
-#' @param verbose Logical. If \code{TRUE}, progress messages and a progress
-#'   indicator are displayed. Defaults to \code{TRUE}.
+#' @param n_sam Integer. Number of Monte Carlo samples per individual used during
+#'   tuning. Defaults to \code{5}.
+#' @param window.size Integer. Window size used for sliding-window averaging of
+#'   coefficient updates. Defaults to \code{50}.
+#' @param theta_est_irt.mean Numeric vector of length \code{n}. IRT posterior mean
+#'   estimates of the latent trait.
+#' @param theta_est_irt.se Numeric vector of length \code{n}. IRT posterior
+#'   standard error estimates of the latent trait.
+#' @param Uupdate Matrix. Factor/design matrix used in the projection and
+#'   debiasing updates.
+#' @param hatU Matrix. Design matrix used in the penalized regression step.
+#' @param Fan Matrix. Final regression design matrix used when recomputing the
+#'   residual scale after selecting \code{lambda}.
+#' @param main Integer vector. Indices of covariates that are left unpenalized in
+#'   the \code{glmnet} fit through \code{penalty.factor = 0}.
+#' @param Fan.em Matrix. Expanded regression design matrix used during the main
+#'   iterative estimation step.
+#' @param verbose boolean. Output the intermediate steps or not.
 #'
 #' @return A list containing:
 #' \describe{
-#'   \item{\code{coefficients}}{Debiased regression coefficient estimates
-#'   corresponding to the selected \code{lambda} (length \code{K_hat + p}).}
-#'   \item{\code{sigma}}{Estimated residual standard deviation.}
-#'   \item{\code{LogLik}}{Value of the BIC-type objective function at the selected
-#'   \code{lambda}. Returned as \code{LogLik} for compatibility.}
-#'   \item{\code{minBIC}}{Index of \code{lambda_all} that minimizes the BIC-type
-#'   criterion.}
-#'   \item{\code{Convergence}}{Character string indicating convergence status of
-#'   the iterative procedure.}
+#'   \item{\code{coef}}{Estimated FARLR debiased regression coefficients for the
+#'   selected value of \code{lambda}.}
+#'   \item{\code{sigma}}{Estimated residual standard deviation after selecting
+#'   \code{lambda}.}
+#'   \item{\code{minBIC}}{Index of the value in \code{lambda_all} that minimizes
+#'   the BIC-type criterion.}
 #' }
 #'
 #' @details
-#' For each candidate value in \code{lambda_all}, coefficient estimates are updated
-#' iteratively until convergence or until \code{iter.max} iterations are reached.
-#' Convergence is assessed using the maximum absolute change in regression
-#' coefficients and the residual scale parameter:
-#' \deqn{
-#' \delta = \max\left(
-#' \lvert \sigma^{(t)} - \sigma^{(t-1)} \rvert,
-#' \max_j \lvert \beta_j^{(t)} - \beta_j^{(t-1)} \rvert
-#' \right).
-#' }
+#' For each value of \code{lambda_all}, the algorithm repeatedly samples latent
+#' trait values, computes importance weights, estimates penalized regression
+#' coefficients, applies a debiasing correction, and updates the residual
+#' standard deviation. Iteration stops when the maximum change in the coefficient
+#' vector or residual standard deviation is below \code{delta.criteria}, or when
+#' \code{iter.max} is reached.
 #'
-#' The debiasing step refits the regression model on the active set selected by the
-#' penalized estimator using weighted least squares, reducing shrinkage bias and
-#' improving finite-sample interpretability of the coefficient estimates.
+#' The tuning parameter is selected by minimizing a BIC-type objective. After
+#' selection, the residual standard deviation is recomputed using a larger Monte
+#' Carlo sample size.
 #'
-#' This function depends on auxiliary routines (not shown here), including
-#' \code{q_num_NA()} for Monte Carlo integration and \code{add_to_window()} for
-#' sliding-window averaging.
+#' This function depends on auxiliary routines, including \code{q_num_NA()} for
+#' Monte Carlo integration and \code{add_to_window()} for sliding-window
+#' averaging.
 #'
-#' @seealso \code{\link[glmnet]{glmnet}}, \code{\link[mirt]{simdata}}
+#' @seealso \code{\link[glmnet]{glmnet}}
 #'
 #' @examples
 #' \dontrun{
 #' fit <- farlr_debias(
-#'   n = nrow(resp),
+#'   N = nrow(resp),
 #'   resp = resp,
-#'   parTab = parTab,
+#'   resp.em = resp.em,
+#'   a = a,
+#'   d = d,
+#'   c = c,
+#'   b1 = b1,
+#'   b2 = b2,
+#'   type = type,
 #'   K_hat = K_hat,
 #'   p = p,
 #'   lambda_all = seq(0.001, 0.1, length.out = 10),
 #'   theta_est_irt.mean = theta_mean,
 #'   theta_est_irt.se = theta_se,
-#'   resp_rep = resp_rep,
-#'   Z.em = Z.em,
+#'   Uupdate = Uupdate,
+#'   hatU = hatU,
+#'   Fan = Fan,
 #'   main = 1,
+#'   Fan.em = Fan.em,
 #'   verbose = TRUE
 #' )
 #' }
 #'
 #' @export
-farlr_debias <- function(n,resp, parTab, K_hat, p, lambda_all, delta.criteria = 1e-3, iter.max = 500, n_sam = 5, window.size = 50, theta_est_irt.mean, theta_est_irt.se,resp_rep = NA, Z.em = NA, Uupdate,hatU, Fan, main, verbose = TRUE)
-{
-  # method debias
-  results <- list()
-  a <- parTab$slope
-  d <- -parTab$slope * parTab$difficulty
-  c <- parTab$guessing
-  output <- if (verbose) stderr() else nullfile()
-  cat(file = output, 'Fitting the latent regression model...\n')
+farlr_debias <- function(N, resp, resp.em, a, d, c, b1, b2, type,
+                              K_hat, p, lambda_all,
+                              delta.criteria = 1e-3,
+                              iter.max = 500,
+                              n_sam = 5,
+                              window.size = 50,
+                              theta_est_irt.mean,
+                              theta_est_irt.se,
+                              Uupdate,
+                              hatU,
+                              Fan,
+                              main,
+                              Fan.em,
+                              verbose = TRUE) {
+
+  results <- vector("list", length(lambda_all))
+
+  # Expanded matrices used during tuning
   Uupdate.em <- rep(1, n_sam) %x% Uupdate
-  Uupdate.em.torch <- torch_tensor(Uupdate.em)
-  resp_rep <- rep(1, n_sam) %x% resp
   hatU.em <- rep(1, n_sam) %x% hatU
+  Z.em <- Fan.em
+
+  Uupdate.em.torch <- torch_tensor(Uupdate.em)
   hatU.em.torch <- torch_tensor(hatU.em)
-  Fan.em <- rep(1, n_sam) %x% Fan
-  temp <- Uupdate.em.torch$matmul(Uupdate.em.torch$t())
-  P <- (1 / (n * n_sam)) * temp
-  #P <- 1/(n*n_sam)*torch_matmul(Uupdate.em.torch,Uupdate.em.torch$t())
-  Z.em <- rep(1, n_sam) %x% Fan
-  if (verbose) pb <- txtProgressBar(file = output, 0, length(lambda_all), style = 3)
-  for (ll in 1:length(lambda_all)) {
-    # initial value
-    #if (verbose) cat("\n", file = output)
-    beta_gamma_old <- rep(0,K_hat+p)
+
+  Ut_update <- Uupdate.em.torch$transpose(1, 2)
+  inv_nnsam <- 1 / (N * n_sam)
+
+  for (ll in seq_along(lambda_all)) {
+
+    beta_gamma_old <- rep(0, K_hat + p)
     sigma_old <- 1
     beta_gamma_t <- list()
-    sigma_t <- list()
-    window_size = window.size
 
     delta <- 1
     iter <- 1
-    theta_t <- 1
-    cov_t <- c()
-    cv.fit.em <- list()
-    cv.fit.em.debias <- list()
     lambda <- lambda_all[ll]
 
-    while ((delta > delta.criteria) && (iter < iter.max)) {
-      # if (verbose && iter %% 10 == 0) {
-      #   cat(".", file = output)
-      #   if (iter %% 30 == 0) cat("\n", file = output)
-      # }
-      # E-step : sample the theta
-      theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+    if (verbose) {
+      message("Starting lambda ", ll, " of ", length(lambda_all),
+              " | lambda = ", lambda)
+    }
+
+    while (delta > delta.criteria && iter < iter.max) {
+
+      # E-step: sample latent proficiency values
+      theta_sample <- rnorm(
+        N * n_sam,
+        mean = theta_est_irt.mean,
+        sd = theta_est_irt.se + 0.2
+      )
+
       theta_sample.torch <- torch_tensor(theta_sample)
-      q_num_sample <- q_num_NA(a,d, c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
 
-      h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+      q_num_sample <- q_num_NA(
+        a, d, c, b1, b2, type,
+        theta_sample, resp.em, Z.em,
+        beta_gamma_old, sigma_old
+      )
 
-      den_all <- q_num_sample/h_sample
+      h_sample <- dnorm(
+        theta_sample,
+        mean = theta_est_irt.mean,
+        sd = theta_est_irt.se + 0.2
+      )
 
-      den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+      den_all <- q_num_sample / h_sample
 
-      w_ik <- (1/den_i)*q_num_sample/h_sample
+      # Compute importance weights by individual
+      den_mat <- matrix(den_all, nrow = N, ncol = n_sam)
+      den_i <- rowMeans(den_mat)
+      w_mat <- den_mat / den_i
+      w_ik <- as.vector(w_mat)
+
       w_ik.torch <- torch_tensor(w_ik)
-      theta_1 <-theta_sample.torch-torch_matmul(P,theta_sample.torch)
-      factors <- rep(1,p)
-      factors[main] <- 0
-      cv.fit.em[[iter]] <- glmnet(hatU.em, as.matrix(theta_1),
-                                  weights = w_ik, penalty.factor=factors,intercept = FALSE, lambda = lambda)
-      coef_hat_em <- coef(cv.fit.em[[iter]],complete=TRUE)[-1]
+
+      # Compute theta_1 without forming the large projection matrix
+      proj <- inv_nnsam *
+        Uupdate.em.torch$matmul(
+          Ut_update$matmul(theta_sample.torch$unsqueeze(2))
+        )$squeeze(2)
+
+      theta_1 <- theta_sample.torch - proj
+
+      # Weighted LASSO fit
+      penalty.factor <- rep(1, p)
+      penalty.factor[main] <- 0
+
+      fit <- glmnet(
+        x = hatU.em,
+        y = as.matrix(theta_1),
+        weights = w_ik,
+        penalty.factor = penalty.factor,
+        intercept = FALSE,
+        lambda = lambda
+      )
+
+      coef_hat_em <- coef(fit, complete = TRUE)[-1]
       coef_hat_em.torch <- torch_tensor(coef_hat_em)
-      weights <- torch_diag(w_ik.torch)
-      C<-torch_diag(rep(1,p))
-      # T<-c()
-      # for( j in 1:ncol(hatU.em)){
-      #
-      #   C[j,-j]<-0
-      #   T<-c(T,1/(n*n_sam)*sum(w_ik*(hatU.em[,j])^2))
-      #   # if (j%%100==0){
-      #   #   print(j)
-      #   # }
-      # }
-      # Ensure w_ik is [n, 1] for broadcasting
-      w_ik_exp <- w_ik.torch$unsqueeze(2)  # [n, 1]
 
-      # Weighted square of hatU_em: [n, p]
-      weighted_sq <- w_ik_exp * hatU.em.torch$pow(2)
+      # Debiasing correction
+      weighted_sq <- w_ik.torch$unsqueeze(2) * hatU.em.torch$pow(2)
+      T <- inv_nnsam * weighted_sq$sum(dim = 1)
 
-      # Sum across rows (i.e., for each column j): result [p]
-      col_sums <- weighted_sq$sum(dim = 1)
+      Theta1 <- torch_diag(1 / T)
+      temp <- inv_nnsam * torch_matmul(Theta1, hatU.em.torch$t())
 
-      # Compute T vector
-      T <- (1 / (n * n_sam)) * col_sums
-      # Create diagonal matrix C: [p, p]
-      T1<-torch_diag(1/T)
-      Theta1<-torch_matmul(T1,C)
-      temp <- (1/(n*n_sam))* torch_matmul(Theta1,hatU.em.torch$t())
-      residuals <- theta_1 - torch_matmul(hatU.em.torch, coef_hat_em.torch)
-      coef_hat_debias <- coef_hat_em + torch_matmul(torch_matmul(temp, weights), residuals)
+      residuals <- theta_1 - hatU.em.torch$matmul(coef_hat_em.torch)
+      w_resid <- w_ik.torch * residuals
+
+      coef_hat_debias <- coef_hat_em.torch +
+        temp$matmul(w_resid$unsqueeze(2))$squeeze(2)
+
       coef_hat_debias <- as.array(coef_hat_debias)
-      #debias ----
-      Ut <- Uupdate.em.torch$transpose(1, 2)
 
-      # Full left-hand matrix: (Uᵗ W U)
-      lhs <- Ut$matmul(weights)$matmul(Uupdate.em.torch)
+      # Estimate factor coefficients using weighted least squares
+      Uw <- Uupdate.em * w_ik
+      lhs <- crossprod(Uupdate.em, Uw)
+      rhs <- crossprod(Uupdate.em, theta_sample * w_ik)
+      phi_hat <- as.numeric(solve(lhs, rhs))
 
-      # Right-hand side: Uᵗ W θ
-      rhs <- Ut$matmul(weights)$matmul(theta_sample)
-      #if (verbose) cat(".", file = output)
-      # Solve the system (lhs)^(-1) * rhs
-      phi_hat <- torch_inverse(lhs)$matmul(rhs)
-      #phi_hat <-(solve(t(Uupdate.em)%*%Uupdate.em))%*%t(Uupdate.em) %*% theta_sample
-      phi_hat <- as.array(phi_hat)
-      coef_hat_em_debias <- ifelse(coef_hat_em !=0, (coef_hat_debias), 0)
-      coef_hat_em_debias <- append(coef_hat_em_debias, (phi_hat), after = 0)
+      # Keep only coefficients selected by the penalized fit
+      coef_hat_em_debias <- ifelse(coef_hat_em != 0, coef_hat_debias, 0)
+      coef_hat_em_debias <- append(coef_hat_em_debias, phi_hat, after = 0)
 
-      #add into sliding window
-      beta_gamma_t <- add_to_window(coef_hat_em_debias, beta_gamma_t, window_size)
-      #calculate mean
-      matrix_beta_gamma <- do.call(cbind, beta_gamma_t)
+      # Smooth coefficient updates using a sliding window
+      beta_gamma_t <- add_to_window(
+        coef_hat_em_debias,
+        beta_gamma_t,
+        window.size
+      )
 
-      beta_gamma_means <- rowMeans(matrix_beta_gamma)
+      beta_gamma_means <- rowMeans(do.call(cbind, beta_gamma_t))
 
-      fitted_values.em <- matrix(beta_gamma_means, nrow = 1)%*%t(Z.em)
+      fitted_values.em <- matrix(beta_gamma_means, nrow = 1) %*% t(Z.em)
       residuals_2 <- theta_sample - fitted_values.em
-      WSSR <- sum(w_ik*(residuals_2^2))#
-      sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
 
-      matrix_sigma <- do.call(cbind, sigma_t)
-      sigma_means <- sigma_temp #rowMeans(matrix_sigma)
+      WSSR <- sum(w_ik * residuals_2^2)
+      sigma_means <- sqrt(WSSR / (nrow(Z.em) - p))
 
-      #joint response ???hg
-      bic <- -2*(-n/2*log(2*pi*sigma_temp^2)- 1/(2*n_sam*sigma_temp^2) * sum(w_ik*(theta_sample - Z.em%*%beta_gamma_means)^2)) + sum(beta_gamma_means!=0)*log(n)
+      bic <- -2 * (
+        -N / 2 * log(2 * pi * sigma_means^2) -
+          1 / (2 * n_sam * sigma_means^2) *
+          sum(w_ik * (theta_sample - Z.em %*% beta_gamma_means)^2)
+      ) + sum(beta_gamma_means != 0) * log(N)
 
-      #calculate delta
-      delta_s <- abs(sigma_old-sigma_means)
+      delta_s <- abs(sigma_old - sigma_means)
       delta_b <- max(abs(beta_gamma_old - beta_gamma_means))
       delta <- max(delta_s, delta_b)
 
       sigma_old <- sigma_means
       beta_gamma_old <- beta_gamma_means
       iter <- iter + 1
-      print(delta)
+
+      if (verbose) {
+        message("  iter = ", iter,
+                " | delta = ", signif(delta, 4),
+                " | sigma = ", signif(sigma_old, 4),
+                " | BIC = ", signif(bic, 4))
+      }
     }
-    print(ll)
-    print(iter)
-    if (verbose) {setTxtProgressBar(pb, pb$getVal() + 1)}
-    results[[ll]] <- list(beta_gamma_old,sigma_old,bic)
+
+    if (verbose) {
+      message("Finished lambda ", ll,
+              " | iterations = ", iter,
+              " | final delta = ", signif(delta, 4),
+              " | BIC = ", signif(bic, 4))
+    }
+
+    results[[ll]] <- list(
+      coef = beta_gamma_old,
+      sigma = sigma_old,
+      bic = bic
+    )
   }
 
-  minBIC <- which.min(unlist(lapply(results, function(x) x[[3]])))
-  beta_hat <- results[[minBIC]][[1]]; sigma <- results[[minBIC]][[2]]
-  n_sam <- 100
-  Uupdate.em <- rep(1, n_sam) %x% Uupdate
-  resp_rep <- rep(1, n_sam) %x% resp
-  hatU.em <- rep(1, n_sam) %x% hatU
-  Z.em <- rep(1, n_sam) %x% Fan
+  # Select lambda by minimum BIC
+  minBIC <- which.min(sapply(results, function(x) x$bic))
+  beta_gamma_old <- results[[minBIC]]$coef
+  sigma_old <- results[[minBIC]]$sigma
 
-  theta_sample <- rnorm(n*n_sam, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+  if (verbose) {
+    message("Selected lambda index: ", minBIC,
+            " | lambda = ", lambda_all[minBIC])
+  }
 
-  q_num_sample <- q_num_NA(a,d,c, theta_sample,resp_rep,Z.em,beta_gamma_old,sigma_old)
+  # Recompute sigma using a larger Monte Carlo sample
+  n_sam_final <- 60
 
-  h_sample <- dnorm(theta_sample, theta_est_irt.mean, (theta_est_irt.se + 0.2))
+  resp_rep <- rep(1, n_sam_final) %x% resp
+  Z.em <- rep(1, n_sam_final) %x% Fan
 
-  den_all <- q_num_sample/h_sample
+  theta_sample <- rnorm(
+    N * n_sam_final,
+    mean = theta_est_irt.mean,
+    sd = theta_est_irt.se + 0.2
+  )
 
-  den_i <- (1/n_sam)*as.numeric(tapply(den_all, (seq_along(den_all) - 1) %% nrow(resp) + 1, sum))
+  q_num_sample <- q_num_NA(
+    a, d, c, b1, b2, type,
+    theta_sample, resp_rep, Z.em,
+    beta_gamma_old, sigma_old
+  )
 
-  w_ik <- (1/den_i)*q_num_sample/h_sample
+  h_sample <- dnorm(
+    theta_sample,
+    mean = theta_est_irt.mean,
+    sd = theta_est_irt.se + 0.2
+  )
 
-  fitted_values.em <- matrix(beta_hat, nrow = 1)%*%t(Z.em)
+  den_all <- q_num_sample / h_sample
+
+  den_i <- (1 / n_sam_final) * as.numeric(
+    tapply(den_all, (seq_along(den_all) - 1) %% N + 1, sum)
+  )
+
+  w_ik <- den_all / den_i
+
+  fitted_values.em <- matrix(beta_gamma_old, nrow = 1) %*% t(Z.em)
   residuals_2 <- theta_sample - fitted_values.em
-  WSSR <- sum(w_ik*(residuals_2^2))#
-  sigma_temp <- sqrt(WSSR/(nrow(Z.em)-p))
+
+  WSSR <- sum(w_ik * residuals_2^2)
+  sigma_final <- sqrt(WSSR / (nrow(Z.em) - p))
+
+  if (verbose) {
+    message("Final sigma = ", signif(sigma_final, 4))
+  }
 
   return(list(
-    coefficients  = beta_hat,
-    sigma = sigma_temp,
-    LogLik = results[[minBIC]][[3]],
-    minBIC = minBIC,
-    Convergence = ifelse(iter<iter.max,"Converged","Did not converge")
+    coef = beta_gamma_old,
+    sigma = sigma_final,
+    minBIC = minBIC
   ))
 }
+
+

@@ -26,11 +26,11 @@ traits.
 
 Data required for analysis are summarized below:
 
-|     Analysis     | Item Responses | Item Parameters | Background Covariates |
-|:----------------:|:--------------:|:---------------:|:---------------------:|
-|  Farlr MML EMM   |   \checkmark   |   \checkmark    |      \checkmark       |
-| Farlr MML Debias |   \checkmark   |   \checkmark    |      \checkmark       |
-|     Dire MML     |   \checkmark   |   \checkmark    |      \checkmark       |
+| Analysis | Item Responses | Item Parameters | Background Covariates | Formula |
+|:--:|:--:|:--:|:--:|:--:|
+| Farlr MML EMM | \checkmark | \checkmark | \checkmark |  |
+| Farlr MML Debias | \checkmark | \checkmark | \checkmark |  |
+| Dire MML | \checkmark | \checkmark | \checkmark | \checkmark |
 
 Here we take dataset `sim_a1` as an example. This simulated dataset is
 for unidimensional 2PL analysis. Responses should be an N by J binary
@@ -55,7 +55,7 @@ covariates and P=60 here .
 
 ``` r
 head(sim_a1$X)
-Show in New Window
+
 #>      [,1] [,2]       [,3] [,4] [,5] [,6] [,7]       [,8] [,9]      [,10]      [,11]      [,12]         [,13]      [,14] [,15]
 #> [1,]    1    1  2.0679032    1    1    1    1  1.3037993    1 1.09682610  0.8427529  1.3828371 -0.1653623137  1.4209337     1
 #> [2,]    1    0  0.1913680    0    1    1    0  0.2450981    1 0.63345311 -0.1196839  0.6937069 -0.1259691264  1.1253781     1
@@ -99,6 +99,7 @@ separately using the known information.
 
 ``` r
 sim_a1$parTab
+
    item           b         a c ItemID test subtest     slope  difficulty guessing D
 #>     1  0.24367868 1.0005257 0  item1 comp    main 1.0005257  0.24367868        0 1
 #>     2 -1.79395380 1.1258010 0  item2 comp    main 1.1258010 -1.79395380        0 1
@@ -122,22 +123,21 @@ sim_a1$parTab
 All the mml functions output estimates of estimated coefficients of
 covariates and variance of residual.
 
-## Exploratory Factor Analysis
+## Maximum Marginal Likelihood
 
-### Parallel Analysis
-
-Parallel analysis can be conducted to determine the number of factors.
-Users can specify the number of simulated datasets, which takes
-`n.iter = 10` by default.
+### Farlr EMM
 
 ``` r
-pa_poly(D2PL_data$data, n.iter = 5)
-#> Parallel analysis suggests that the number of factors =  2
+mmlcomp <- with(sim_a1, Farlr_mml(X, Y, parTab, method = "FARLR_EMM"))
+
+#> Using eigendecomposition of correlation matrix.
+#> Computing: 10%  20%  30%  40%  50%  60%  70%  80%  90%  100%
+
+#> Fitting the latent regression model...
+#>   |===========================================================================================|100%
 ```
 
-![](figure/unnamed-chunk-6-1.png)
-
-### M2PL Model
+### Farlr Debias
 
 `VEMIRT` provides the following functions to conduct EFA for the M2PL
 model:
@@ -161,6 +161,7 @@ CF-Quartimax rotation.
 
 ``` r
 E2PL_gvem_rot(E2PL_data_C1$data, domain = 3)
+
 #>          a1      a2       a3       b
 #> 1   0.10594  1.5952 -0.10845  1.7290
 #> 2   1.91968  0.0721 -0.05631 -1.3236
@@ -203,156 +204,74 @@ matrix, indicating that each of these D items loads solely on one
 factor. Notice that the first 3 rows of `E2PL_data_C1$model` form an
 identity matrix.
 
-``` r
-E2PL_data_C1$model
-#>       [,1] [,2] [,3]
-#>  [1,]    1    0    0
-#>  [2,]    0    1    0
-#>  [3,]    0    0    1
-#>  [4,]    1    1    1
-#>  [5,]    1    1    1
-#>  [6,]    1    1    1
-#>  [7,]    1    1    1
-#>  [8,]    1    1    1
-#>  [9,]    1    1    1
-#> [10,]    1    1    1
-#> [11,]    1    1    1
-#> [12,]    1    1    1
-#> [13,]    1    1    1
-#> [14,]    1    1    1
-#> [15,]    1    1    1
-#> [16,]    1    1    1
-#> [17,]    1    1    1
-#> [18,]    1    1    1
-#> [19,]    1    1    1
-#> [20,]    1    1    1
-#> [21,]    1    1    1
-#> [22,]    1    1    1
-#> [23,]    1    1    1
-#> [24,]    1    1    1
-#> [25,]    1    1    1
-#> [26,]    1    1    1
-#> [27,]    1    1    1
-#> [28,]    1    1    1
-#> [29,]    1    1    1
-#> [30,]    1    1    1
-```
+    `E2PL_gvem_adaptlasso` needs an additional tuning parameter, which takes `gamma = 2` by default. Users are referred to @cho2024 for algorithmic details.
 
-Under `"C2"`, a D\times D sub-matrix of `indic` should be a lower
-triangular matrix whose diagonal elements are all one, indicating that
-each of these D items loads on one factor and potentially other factors
-as well; non-zero elements other than the diagonal are penalized. For
-identification under `"C2"`, another argument `non_pen` should be
-provided, which specifies an anchor item that loads on all the factors.
-In the following example, the first 2 rows and any other row form such a
-lower triangular matrix, so `non_pen` can take any integer from 3 to 30.
-
-``` r
-E2PL_data_C2$model
-#>       [,1] [,2] [,3]
-#>  [1,]    1    0    0
-#>  [2,]    1    1    0
-#>  [3,]    1    1    1
-#>  [4,]    1    1    1
-#>  [5,]    1    1    1
-#>  [6,]    1    1    1
-#>  [7,]    1    1    1
-#>  [8,]    1    1    1
-#>  [9,]    1    1    1
-#> [10,]    1    1    1
-#> [11,]    1    1    1
-#> [12,]    1    1    1
-#> [13,]    1    1    1
-#> [14,]    1    1    1
-#> [15,]    1    1    1
-#> [16,]    1    1    1
-#> [17,]    1    1    1
-#> [18,]    1    1    1
-#> [19,]    1    1    1
-#> [20,]    1    1    1
-#> [21,]    1    1    1
-#> [22,]    1    1    1
-#> [23,]    1    1    1
-#> [24,]    1    1    1
-#> [25,]    1    1    1
-#> [26,]    1    1    1
-#> [27,]    1    1    1
-#> [28,]    1    1    1
-#> [29,]    1    1    1
-#> [30,]    1    1    1
-```
-
-`E2PL_gvem_adaptlasso` needs an additional tuning parameter, which takes
-`gamma = 2` by default. Users are referred to @cho2024 for algorithmic
-details.
-
-``` r
-result <- with(E2PL_data_C1, E2PL_gvem_lasso(data, model, constrain = "C1"))
-result
-#>       a1     a2   a3       b
-#> 1  1.572  0.000 0.00  1.7198
-#> 2  0.000  1.923 0.00 -1.3243
-#> 3  0.000  0.000 1.58 -1.2981
-#> 4  1.928  0.000 0.00 -0.8756
-#> 5  0.000  1.696 0.00 -0.8114
-#> 6  0.000  0.000 1.62  0.1907
-#> 7  1.337  0.000 0.00 -0.9712
-#> 8  0.000  1.589 0.00  0.4653
-#> 9  0.000  0.000 1.42  1.1816
-#> 10 1.473  0.000 0.00  1.0629
-#> 11 0.000  1.639 0.00  0.8623
-#> 12 0.000  0.000 1.71 -0.6524
-#> 13 1.964  0.000 0.00  0.0408
-#> 14 0.000  1.459 0.00  1.5628
-#> 15 0.000  0.000 1.84 -1.3199
-#> 16 1.776  0.000 0.00 -1.9514
-#> 17 0.000  1.807 0.00  0.5304
-#> 18 0.000  0.000 1.55  0.5113
-#> 19 1.812 -0.277 0.00  0.1169
-#> 20 0.000  1.367 0.00  0.3120
-#> 21 0.000  0.000 1.73  0.1104
-#> 22 1.861  0.000 0.00 -0.6754
-#> 23 0.322  1.560 0.00  1.0364
-#> 24 0.000  0.000 1.54  0.0525
-#> 25 1.544  0.000 0.00  0.3269
-#> 26 0.000  1.775 0.00 -0.0335
-#> 27 0.000  0.000 1.74  0.6011
-#> 28 1.803  0.000 0.00 -1.5078
-#> 29 0.000  1.633 0.00 -1.0087
-#> 30 0.000 -0.204 1.57 -0.1730
-with(E2PL_data_C2, E2PL_gvem_adaptlasso(data, model, constrain = "C2", non_pen = 3))
-#>         a1    a2   a3       b
-#> 1   1.6019 0.000 0.00  1.7409
-#> 2   0.4230 2.419 0.00 -1.1530
-#> 3   0.0000 2.653 1.00 -1.2417
-#> 4   1.9203 0.000 0.00 -0.8737
-#> 5  -1.2687 2.575 0.00 -0.8181
-#> 6  -0.1981 0.993 1.29  0.1904
-#> 7   1.3404 0.000 0.00 -0.9736
-#> 8  -0.8955 2.214 0.00  0.4638
-#> 9  -0.2045 0.912 1.12  1.1810
-#> 10  1.5077 0.000 0.00  1.0795
-#> 11 -1.2717 2.493 0.00  0.8623
-#> 12 -0.3468 1.254 1.32 -0.6612
-#> 13  2.0240 0.000 0.00  0.0465
-#> 14 -1.1050 2.213 0.00  1.5660
-#> 15 -0.2273 1.169 1.39 -1.3111
-#> 16  1.8359 0.000 0.00 -1.9954
-#> 17 -1.3386 2.723 0.00  0.5314
-#> 18 -0.3741 1.040 1.27  0.5081
-#> 19  1.6743 0.000 0.00  0.1161
-#> 20 -0.9951 2.069 0.00  0.3137
-#> 21 -0.4841 1.336 1.34  0.1086
-#> 22  1.8836 0.000 0.00 -0.6795
-#> 23 -0.7954 2.335 0.00  1.0436
-#> 24  0.0000 0.736 1.25  0.0521
-#> 25  1.5476 0.000 0.00  0.3304
-#> 26 -1.2496 2.608 0.00 -0.0336
-#> 27 -0.3240 1.235 1.30  0.5954
-#> 28  1.8113 0.000 0.00 -1.5157
-#> 29 -1.2838 2.500 0.00 -1.0119
-#> 30 -0.0444 0.706 1.23 -0.1758
-```
+    ``` r
+    result <- with(E2PL_data_C1, E2PL_gvem_lasso(data, model, constrain = "C1"))
+    result
+    #>       a1     a2   a3       b
+    #> 1  1.572  0.000 0.00  1.7198
+    #> 2  0.000  1.923 0.00 -1.3243
+    #> 3  0.000  0.000 1.58 -1.2981
+    #> 4  1.928  0.000 0.00 -0.8756
+    #> 5  0.000  1.696 0.00 -0.8114
+    #> 6  0.000  0.000 1.62  0.1907
+    #> 7  1.337  0.000 0.00 -0.9712
+    #> 8  0.000  1.589 0.00  0.4653
+    #> 9  0.000  0.000 1.42  1.1816
+    #> 10 1.473  0.000 0.00  1.0629
+    #> 11 0.000  1.639 0.00  0.8623
+    #> 12 0.000  0.000 1.71 -0.6524
+    #> 13 1.964  0.000 0.00  0.0408
+    #> 14 0.000  1.459 0.00  1.5628
+    #> 15 0.000  0.000 1.84 -1.3199
+    #> 16 1.776  0.000 0.00 -1.9514
+    #> 17 0.000  1.807 0.00  0.5304
+    #> 18 0.000  0.000 1.55  0.5113
+    #> 19 1.812 -0.277 0.00  0.1169
+    #> 20 0.000  1.367 0.00  0.3120
+    #> 21 0.000  0.000 1.73  0.1104
+    #> 22 1.861  0.000 0.00 -0.6754
+    #> 23 0.322  1.560 0.00  1.0364
+    #> 24 0.000  0.000 1.54  0.0525
+    #> 25 1.544  0.000 0.00  0.3269
+    #> 26 0.000  1.775 0.00 -0.0335
+    #> 27 0.000  0.000 1.74  0.6011
+    #> 28 1.803  0.000 0.00 -1.5078
+    #> 29 0.000  1.633 0.00 -1.0087
+    #> 30 0.000 -0.204 1.57 -0.1730
+    with(E2PL_data_C2, E2PL_gvem_adaptlasso(data, model, constrain = "C2", non_pen = 3))
+    #>         a1    a2   a3       b
+    #> 1   1.6019 0.000 0.00  1.7409
+    #> 2   0.4230 2.419 0.00 -1.1530
+    #> 3   0.0000 2.653 1.00 -1.2417
+    #> 4   1.9203 0.000 0.00 -0.8737
+    #> 5  -1.2687 2.575 0.00 -0.8181
+    #> 6  -0.1981 0.993 1.29  0.1904
+    #> 7   1.3404 0.000 0.00 -0.9736
+    #> 8  -0.8955 2.214 0.00  0.4638
+    #> 9  -0.2045 0.912 1.12  1.1810
+    #> 10  1.5077 0.000 0.00  1.0795
+    #> 11 -1.2717 2.493 0.00  0.8623
+    #> 12 -0.3468 1.254 1.32 -0.6612
+    #> 13  2.0240 0.000 0.00  0.0465
+    #> 14 -1.1050 2.213 0.00  1.5660
+    #> 15 -0.2273 1.169 1.39 -1.3111
+    #> 16  1.8359 0.000 0.00 -1.9954
+    #> 17 -1.3386 2.723 0.00  0.5314
+    #> 18 -0.3741 1.040 1.27  0.5081
+    #> 19  1.6743 0.000 0.00  0.1161
+    #> 20 -0.9951 2.069 0.00  0.3137
+    #> 21 -0.4841 1.336 1.34  0.1086
+    #> 22  1.8836 0.000 0.00 -0.6795
+    #> 23 -0.7954 2.335 0.00  1.0436
+    #> 24  0.0000 0.736 1.25  0.0521
+    #> 25  1.5476 0.000 0.00  0.3304
+    #> 26 -1.2496 2.608 0.00 -0.0336
+    #> 27 -0.3240 1.235 1.30  0.5954
+    #> 28  1.8113 0.000 0.00 -1.5157
+    #> 29 -1.2838 2.500 0.00 -1.0119
+    #> 30 -0.0444 0.706 1.23 -0.1758
 
 GVEM is known to produce biased estimates for discrimination parameters,
 and `E2PL_iw` helps reduce the bias through importance sampling

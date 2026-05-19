@@ -1,5 +1,0 @@
-"0","r_seq <- seq(0, 1, by = 0.2)"
-"0","for (r in r_seq) {"
-"0","  symbols(0, 0, circles = r, inches = FALSE, add = TRUE,"
-"0","          fg = ""grey80"", lwd = 1)"
-"0","}"
