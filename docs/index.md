@@ -1,7 +1,5 @@
 # FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment
 
-![](reference/figures/logo.png)
-
 FARL models integrate latent trait estimation with regularized
 regression, enabling scalable modeling of relationships between latent
 abilities and high-dimensional covariates.
