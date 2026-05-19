@@ -2,20 +2,28 @@
 
 ## Authors
 
-- **Yijun Cheng**. Author, maintainer.
-  [](https://orcid.org/0000-0002-0671-9193)
+- **[Yijun Cheng](https://orcid.org/0000-0002-0671-9193)**. Author,
+  maintainer. [](https://orcid.org/0000-0002-0671-9193)
+
+- **[Chun Wang](https://education.uw.edu/people/faculty/wang4066)**.
+  Author.
+
+- **[Gongjun
+  Xu](https://lsa.umich.edu/stats/people/faculty/GongjunXu.html)**.
+  Author.
 
 ## Citation
 
 Source:
 [`DESCRIPTION`](https://github.com/yijunchenguw/FARL/blob/HEAD/DESCRIPTION)
 
-Cheng Y (2026). *FARL: Factor-Adjusted Regularized Latent Regression*. R
-package version 0.1.0, <https://yijunchenguw.github.io/FARL/>.
+Cheng Y, Wang C, Xu G (2026). *FARL: Factor-Adjusted Regularized Latent
+Regression*. R package version 0.1.0,
+<https://yijunchenguw.github.io/FARL/>.
 
     @Manual{,
       title = {FARL: Factor-Adjusted Regularized Latent Regression},
-      author = {Yijun Cheng},
+      author = {Yijun Cheng and Chun Wang and Gongjun Xu},
       year = {2026},
       note = {R package version 0.1.0},
       url = {https://yijunchenguw.github.io/FARL/},

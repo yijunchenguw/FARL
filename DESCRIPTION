@@ -2,11 +2,17 @@ Package: FARL
 Type: Package
 Title: Factor-Adjusted Regularized Latent Regression
 Version: 0.1.0
-Authors@R:
+Authors@R:c(
     person("Yijun", "Cheng",
            email = "chengxb@uw.edu",
            role = c("aut", "cre"),
-           comment = c(ORCID = "0000-0002-0671-9193"))
+           comment = c(ORCID = "0000-0002-0671-9193")),
+    person("Chun", "Wang",
+           email = "wang4066@uw.edu",
+           role = "aut"),
+    person("Gongjun", "Xu",
+           email = "gongjun@umich.edu",
+           role = "aut"))
 Maintainer: The package maintainer <chengxb@uw.edu>
 Description: Implements factor-adjusted regularized latent regression models
     for large-scale assessment and multilevel latent variable analysis.

@@ -20,6 +20,14 @@ navbar:
       text: Glossary
       href: reference/index.html
 
+authors:
+  Yijun Cheng:
+    href: https://orcid.org/0000-0002-0671-9193
+  Chun Wang:
+    href: https://education.uw.edu/people/faculty/wang4066
+  Gongjun Xu:
+    href: https://lsa.umich.edu/stats/people/faculty/GongjunXu.html
+
 footer:
   structure:
     left: developed_by
