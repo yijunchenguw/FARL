@@ -1,9 +1,4 @@
 ---
-title: "FARL: A Package for Large Scale Assessment"
-output: html_document
----
-
----
 title: Use factor-augmented regularized latent regression to analyze complex large-scale assessment 
 output:
   rmarkdown::html_vignette:

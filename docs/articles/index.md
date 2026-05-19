@@ -2,5 +2,6 @@
 
 ### All vignettes
 
-- [FARL: A Package for Large Scale
-  Assessment](https://yijunchenguw.github.io/FARL/articles/FARL.md):
+- [Use factor-augmented regularized latent regression to analyze complex
+  large-scale
+  assessment](https://yijunchenguw.github.io/FARL/articles/FARL.md):

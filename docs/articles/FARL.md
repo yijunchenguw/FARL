@@ -1,4 +1,4 @@
-# FARL: A Package for Large Scale Assessment
+# Use factor-augmented regularized latent regression to analyze complex large-scale assessment
 
 ## Introduction
 

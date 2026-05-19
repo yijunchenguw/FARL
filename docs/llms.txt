@@ -1,4 +1,4 @@
-# FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment
+# FARL: Use Factor-augmented Regularized Latent Regression for Large Scale Assessment ![](reference/figures/logo.png)
 
 FARL models integrate latent trait estimation with regularized
 regression, enabling scalable modeling of relationships between latent
@@ -72,5 +72,6 @@ vignette("FARL")
 
 ### All vignettes
 
-- [FARL: A Package for Large Scale
-  Assessment](https://yijunchenguw.github.io/FARL/articles/FARL.md):
+- [Use factor-augmented regularized latent regression to analyze complex
+  large-scale
+  assessment](https://yijunchenguw.github.io/FARL/articles/FARL.md):
