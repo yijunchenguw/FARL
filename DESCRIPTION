@@ -7,13 +7,14 @@ Authors@R:c(
            email = "chengxb@uw.edu",
            role = c("aut", "cre"),
            comment = c(ORCID = "0000-0002-0671-9193")),
-    person("Chun", "Wang",
-           email = "wang4066@uw.edu",
-           role = "aut"),
-    person("Gongjun", "Xu",
-           email = "gongjun@umich.edu",
-           role = "aut"))
-Maintainer: The package maintainer <chengxb@uw.edu>
+   person("Chun", "Wang", 
+          role = c("aut"), 
+          email = "wang4066@uw.edu", 
+          comment = c(ORCID = "0000-0003-2695-9781")),
+   person("Gongjun", "Xu", 
+          role = c("aut"), 
+          email = "gongjun@umich.edu", 
+          comment = c(ORCID = "0000-0003-4023-5413")))
 Description: Implements factor-adjusted regularized latent regression models
     for large-scale assessment and multilevel latent variable analysis.
     The package provides estimation, simulation, and diagnostic tools

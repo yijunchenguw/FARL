@@ -2,15 +2,12 @@
 
 ## Authors
 
-- **[Yijun Cheng](https://orcid.org/0000-0002-0671-9193)**. Author,
-  maintainer. [](https://orcid.org/0000-0002-0671-9193)
+- **Yijun Cheng**. Author, maintainer.
+  [](https://orcid.org/0000-0002-0671-9193)
 
-- **[Chun Wang](https://education.uw.edu/people/faculty/wang4066)**.
-  Author.
+- **Chun Wang**. Author. [](https://orcid.org/0000-0003-2695-9781)
 
-- **[Gongjun
-  Xu](https://lsa.umich.edu/stats/people/faculty/GongjunXu.html)**.
-  Author.
+- **Gongjun Xu**. Author. [](https://orcid.org/0000-0003-4023-5413)
 
 ## Citation
 
